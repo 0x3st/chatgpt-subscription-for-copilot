@@ -64,10 +64,11 @@ export function pickerEffort(options: NativeResponseOptions): unknown {
   const value = pickerOption(options, 'reasoningEffort');
   return value === 'inherit' ? undefined : value;
 }
-export function pickerInputBudget(model: ChatModel, options: NativeResponseOptions): number | undefined {
+export function pickerInputBudget(model: ChatModel, options: NativeResponseOptions): number {
+  const ceiling = inputBudget(model);
   const value = pickerOption(options, 'contextSize');
-  if (value === undefined) return undefined;
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1024 || value > inputBudget(model)) {
+  if (value === undefined) return ceiling;
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1024 || value > ceiling) {
     throw new AppError('The selected context budget is invalid or exceeds the current model input limit. Re-select a context size in the model menu.');
   }
   return value;

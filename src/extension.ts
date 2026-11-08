@@ -22,10 +22,25 @@ export function activate(context: vscode.ExtensionContext): void {
   };
   const guarded = (action: () => PromiseLike<unknown>) => async () => { try { await action(); } catch (error) { report(error); } };
   let pendingLogin: Promise<boolean> | undefined;
-  const signIn = (clientId?: string): Promise<boolean> => {
+  const signIn = (clientId?: string, intent: 'reconnect' | 'add' = 'reconnect'): Promise<boolean> => {
     if (pendingLogin) return pendingLogin;
     pendingLogin = (async () => {
       try {
+        let target = clientId;
+        if (!target && intent === 'reconnect') {
+          const saved = await accounts.snapshot(lifetime.signal);
+          const active = saved.accounts.find(account => account.clientId === saved.active);
+          if (active) target = active.clientId;
+          else if (saved.accounts.length === 1) target = saved.accounts[0]!.clientId;
+          else if (saved.accounts.length > 1) {
+            const selected = await vscode.window.showQuickPick(saved.accounts.map(account => ({
+              label: account.label, description: account.signedIn ? 'Reconnect saved registration' : 'Signed out', clientId: account.clientId
+            })), { title: 'Reconnect ChatGPT', placeHolder: 'Choose a saved registration. To add an account or workspace, use Manage Accounts.' });
+            if (!selected || lifetime.signal.aborted) return false;
+            target = selected.clientId;
+          }
+        }
+        if (lifetime.signal.aborted) return false;
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification,
           title: 'Continue with ChatGPT (Preview)', cancellable: true }, async (_progress, token) => {
           const cancel = cancellation(token);
@@ -33,7 +48,7 @@ export function activate(context: vscode.ExtensionContext): void {
           try {
             await accounts.login(async url => {
               if (!await vscode.env.openExternal(vscode.Uri.parse(url))) throw new Error('Browser unavailable');
-            }, signal, clientId);
+            }, signal, target);
           } finally { cancel.dispose(); }
         });
         const snapshot = await accounts.snapshot(lifetime.signal);
@@ -83,9 +98,9 @@ export function activate(context: vscode.ExtensionContext): void {
         if (action === 'Sign in again / authorize subscription') await signIn(account.clientId);
       }
     }));
-    choices.push({ label: '$(add) Continue with ChatGPT — Add an account or workspace', run: () => signIn() },
+    choices.push({ label: '$(add) Continue with ChatGPT — Add an account or workspace', run: () => signIn(undefined, 'add') },
       { label: '$(settings-gear) Advanced Model Defaults', run: () => provider.configureModel(lifetime.signal) },
-      { label: '$(refresh) Refresh Models', run: async () => provider.refresh() },
+      { label: '$(refresh) Refresh Models', run: async () => provider.refresh(true) },
       { label: '$(link-external) ChatGPT Usage', run: () => vscode.env.openExternal(vscode.Uri.parse(USAGE)) });
     if (snapshot.active) choices.push({ label: '$(sign-out) Sign Out of Active Account', run: signOut });
     const selected = await vscode.window.showQuickPick(choices, { title: 'ChatGPT Subscription (Preview)', placeHolder: 'Account and workspace registrations are stored separately. Subscription usage may be shared with other apps.' });
@@ -94,7 +109,7 @@ export function activate(context: vscode.ExtensionContext): void {
   for (const [command, action] of [
     ['chatgptSub.manage', manage], ['chatgptSub.signIn', () => signIn()], ['chatgptSub.signOut', signOut],
     ['chatgptSub.configureModel', () => provider.configureModel(lifetime.signal)],
-    ['chatgptSub.refreshModels', async () => { provider.refresh(); void vscode.window.showInformationMessage('Model cache cleared. Copilot will query the catalog again.'); }],
+    ['chatgptSub.refreshModels', async () => { provider.refresh(true); void vscode.window.showInformationMessage('Model cache and local retry pause cleared. Copilot will query the catalog again. This does not reset upstream usage limits.'); }],
     ['chatgptSub.usage', () => vscode.env.openExternal(vscode.Uri.parse(USAGE))], ['chatgptSub.logs', async () => log.show(true)]
   ] as const) context.subscriptions.push(vscode.commands.registerCommand(command, guarded(action)));
   void accounts.synchronize(lifetime.signal).catch(report);

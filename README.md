@@ -17,7 +17,7 @@ The extension's default interface, account dialogs, browser callback pages, diag
 
 ## Install and connect
 
-1. Install [ChatGPT Subscription for Copilot from the Marketplace](https://marketplace.visualstudio.com/items?itemName=lab530.chatgpt-subscription-for-copilot), or use **Extensions → Install from VSIX…** with `lab530.chatgpt-subscription-for-copilot-0.1.0.vsix`.
+1. Install [ChatGPT Subscription for Copilot from the Marketplace](https://marketplace.visualstudio.com/items?itemName=lab530.chatgpt-subscription-for-copilot), or use **Extensions → Install from VSIX…** with `lab530.chatgpt-subscription-for-copilot-0.1.1.vsix`.
 2. Run **ChatGPT Subscription: Continue with ChatGPT**.
 3. Complete authorization on the official OpenAI page in your browser. After the first successful sign-in with subscription access, a dismissible notice confirms ChatGPT plan usage and shared limits. Earlier notice acknowledgments are retained; failed or declined authorization does not mark it as shown.
 4. In Copilot Chat, open the model picker → **Manage Models…** → **ChatGPT Subscription (Preview)** and enable an available model.
@@ -30,7 +30,7 @@ Silent model discovery never opens a browser. Authentication failures do not sil
 For an existing installation of **the same extension ID, `lab530.chatgpt-subscription-for-copilot`**, run this from the project directory:
 
 ```bash
-code --install-extension ./artifacts/lab530.chatgpt-subscription-for-copilot-0.1.0.vsix --force
+code --install-extension ./artifacts/lab530.chatgpt-subscription-for-copilot-0.1.1.vsix --force
 ```
 
 Then run **Developer: Reload Window**. You can also reinstall through **Install from VSIX…**. Updating the same extension identity does not require signing in again solely because of an SSE parsing fix.
@@ -56,21 +56,31 @@ Credentials are never automatically read or copied from the old extension, Pi, o
 - Serialized credential updates and rotating-token refresh across windows. Switching accounts or signing out cancels stale operations.
 - Cancellation and finite total deadlines covering authentication, refresh, response headers, and streaming bodies.
 
+## 0.1.1 patch notes
+
+- Report actual successful-response token usage to Copilot's context indicator using the disclosed non-public compatibility convention; do not fabricate missing usage as zero.
+- Enforce effective input budgets even without native context selections, including changed account limits and saved defaults.
+- Classify standard streaming rate-limit errors correctly. Explain that subscription-sharing limits can be app-specific, and prevent repeated upstream calls during a fixed 60-second local retry pause. This does **not** resolve or reset an upstream quota, and the reported 50%/100% discrepancy remains unconfirmed.
+- Reconnect the active or retained App registration instead of creating another by default. Only first sign-in or an explicit Add action creates a registration.
+- Validate account changes before saving so count, size, or structural failures preserve the previous vault.
+
+Validated with 168 offline tests, including the production CJS bundle. Live UI acceptance and the user's upstream quota state remain unverified; no automatic backend, credential, or billing migration is performed.
+
 ## Commands
 
 All commands use the **ChatGPT Subscription** category.
 
 | Command | Purpose |
 | --- | --- |
-| Continue with ChatGPT | Add an account or workspace registration |
+| Continue with ChatGPT | Reconnect the active or sole saved registration; choose one if several are retained; create a registration only for a first login |
 | Manage Accounts | Select a saved registration, reconnect, or grant subscription access |
 | Sign Out of Active Account | Cancel requests, attempt session revocation, and clear the active account's local tokens |
 | Advanced Model Defaults | Set saved defaults or override missing input-limit metadata; ordinary chat controls are in the native model submenu |
-| Refresh Models | Clear the model catalog cache |
+| Refresh Models | Clear the model catalog cache and local quota retry pause; does not reset upstream limits |
 | Open ChatGPT Usage | Open shared usage information |
 | Show Logs | Show operation status, token counts, sanitized errors, HTTP status, allowlisted response type, and request ID |
 
-Registrations remain separate even when they use the same email address. Signing out retains the issued client ID and verified identity mapping for reconnecting. If remote revocation cannot be confirmed, the extension tells you to disconnect the application in ChatGPT Settings.
+Registrations remain separate even when they use the same email address. **Continue with ChatGPT** reuses the active registration, or the sole retained registration after sign-out. If several registrations remain with no active selection, you choose which one to reconnect; cancelling does not create an App. To deliberately create another registration, choose **Manage Accounts → Add an account or workspace**. The very first login also creates a registration. Signing out retains the issued client ID and verified identity mapping for reconnecting. If remote revocation cannot be confirmed, the extension tells you to disconnect the application in ChatGPT Settings.
 
 ## Settings
 
@@ -92,9 +102,11 @@ Settings are **machine-scoped**. The extension explicitly reads user/default val
 
 In **Copilot Chat's model picker**, open the arrow/submenu beside a ChatGPT model. Choose **Thinking effort** and **Context window** there, without a command-palette detour or separate model variants. The native row shows the selected settings, for example **High · Max 1M** when the model's available input budget is 1M. Smaller budgets have their own native choices. No 1M capacity is fabricated when catalog metadata is missing.
 
-The selected thinking level reaches OpenAI as `reasoning.effort`. The selected `contextSize` is a local Copilot input budget, never an unsupported Responses request field. Copilot uses its native context configuration for prompt budgeting; the provider also rejects an estimated over-budget request without dropping history or tool results. Token counts remain estimates, not a guarantee against upstream context-limit errors.
+The selected thinking level reaches OpenAI as `reasoning.effort`. The selected `contextSize` is a local Copilot input budget, never an unsupported Responses request field. Copilot uses its native context configuration for prompt budgeting; the provider also checks the current account catalog and saved input budget on every request, even when no native context selection is supplied, and rejects an estimated over-budget request without dropping history or tool results. Token counts remain estimates, not a guarantee against upstream context-limit errors.
 
 **Compatibility boundary:** registration and streaming use the stable `LanguageModelChatProvider` API and no proposed APIs are enabled. The inline controls themselves use DeepSeek-style **non-public** `configurationSchema`, `modelConfiguration`, and `configuration` compatibility metadata. These fields are not a GA API contract and may change across VS Code/Copilot versions. Model information is refreshed once after Copilot becomes active, observed passively without activating it or polling. Live UI acceptance in the user's editor remains pending.
+
+**Context usage display:** after a successful response, the extension forwards actual input/output token counts using a stable `LanguageModelDataPart` with Copilot's **non-public** `usage` MIME convention. Like the native picker metadata, this convention is not a GA contract and may change with VS Code/Copilot upgrades. Input usage includes cached input tokens and represents the latest request, not cumulative session billing. Missing or invalid usage is not fabricated as zero. Failed, incomplete, and cancelled responses do not publish successful usage. Live display acceptance in the user's editor remains pending.
 
 Copilot owns the persistence/scope of its native model choices; request-carried values do not rewrite this extension's saved defaults. For advanced saved preferences, arbitrary input budgets, or manual overrides of missing catalog metadata, use **ChatGPT Subscription: Advanced Model Defaults** or the following user settings:
 
@@ -123,6 +135,7 @@ This implementation follows Pi 1.5.0's newer **`openai` → Sign in with ChatGPT
 - Credential-bearing authentication requests use fixed `auth.openai.com` endpoints. Inference uses `https://api.openai.com/v1/responses`. HTTP redirects and non-official metadata URLs are rejected.
 - Tokens, verified account identity, and a stable installation host ID are stored independently in VS Code SecretStorage. Pi/Codex account files are never imported.
 - The loopback OAuth callback binds only to `127.0.0.1`, validates Host/path/state/client ID, and closes after authorization, cancellation, or a bounded sign-in deadline.
+- Account writes are validated before replacing stored data; invalid or oversized changes preserve the previous vault. Up to 100 registrations can be retained, with a 1,048,576-character serialized-state ceiling. At capacity, reconnect an existing registration in Manage Accounts instead of adding another.
 - Cross-window locks live in this extension's local `globalStorage` directory and contain no tokens. Do not manually delete locks during sign-in; crash leftovers can take about a minute to become stale.
 - Conversation context supplied by Copilot—including code, images, and tool results—is sent to OpenAI. **`store: false` is not a promise of zero retention across the service chain.** Follow your organization's data policies.
 - No extension-operated proxy, analytics collector, or telemetry service is included. See the [privacy notice](https://github.com/0x3st/chatgpt-subscription-for-copilot/blob/HEAD/PRIVACY.md).
@@ -137,7 +150,7 @@ This implementation follows Pi 1.5.0's newer **`openai` → Sign in with ChatGPT
 - Image support is enabled only when explicitly declared in the account model catalog.
 - Missing token-limit metadata uses conservative **32K input / 4K output estimates**, labeled in model tooltips. Token counting is also an estimate; these values are not upstream output limits.
 - Encrypted reasoning is eligible for replay for 30 minutes, with a cache limit of 256 entries / 8 MiB. Expired entries are removed on access; deactivation clears the cache. Reloading or cache expiry may require starting a new conversation.
-- The extension does not automatically retry inference or switch billing routes. Copilot may independently retry a provider failure. Usage reset times are not guessed; check [ChatGPT Usage](https://chatgpt.com/settings/usage).
+- The extension does not automatically retry inference or switch billing routes. After an upstream quota/rate-limit error, subsequent requests for the same active registration are blocked locally for up to 60 seconds to avoid repeated upstream calls from Copilot retries; the pause is in-memory and does not extend when a cached error is returned. **This local pause is not an upstream quota reset estimate.** Explicitly running **Refresh Models** clears it; passive refresh does not. Requests already in flight and other extension-host windows are not covered by this local guard. Copilot may still show its own retry or 502 wrapper. Usage reset times are not guessed; check [ChatGPT Usage](https://chatgpt.com/settings/usage).
 - Live text inference has been confirmed by the user. Full Agent tool execution, Windows/Linux, remote workspaces, and different Copilot versions still require end-to-end acceptance. Local tests do not guarantee upstream availability.
 
 ## Troubleshooting
@@ -145,6 +158,16 @@ This implementation follows Pi 1.5.0's newer **`openai` → Sign in with ChatGPT
 ### `command 'chatgptSub.signIn' not found`
 
 An early development build incorrectly required a `file:` storage URI, rejecting desktop VS Code profiles using `vscode-userdata:`. Current builds support both local schemes while still rejecting web hosts, remote authorities, and relative paths. Reinstall the correct package and reload the window. Account data does not need to be deleted.
+
+### Reconnecting creates another App in ChatGPT
+
+Earlier builds treated the default **Continue with ChatGPT** command as an Add action. Version 0.1.1 reconnects an existing registration as described above; they keep the official SIWC Preview flow and do not switch to the legacy Codex Beta backend. A missing local registration (for example after clearing storage or changing extension IDs) cannot be reconstructed from an email address, and other extensions' credentials are never imported. Already-created duplicate Apps are not automatically deleted. An invalid or removed issued client does not silently fall back to creating another App.
+
+### A usage-limit error despite remaining ChatGPT usage
+
+`subscription_sharing_usage_limit_exceeded` is an upstream subscription-sharing error, not a local token-budget calculation. OpenAI's [official recovery guidance](https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery) says an **app-specific limit can also apply**: this code does not establish that the entire ChatGPT plan is exhausted and does not identify a reset time. Check **Open ChatGPT Usage** and verify the active account/workspace; repeatedly signing in is not a quota reset. The extension cannot inspect your account's remaining limits or override an upstream rejection.
+
+The extension now classifies both standard streaming rate-limit errors and subscription-sharing quota errors as blocked requests and applies the local retry pause described above. It still returns a failure, never a fabricated successful answer. After checking access, **Refresh Models** clears only the local pause, not upstream limits. If Copilot displays `retried 5 times` or `502`, those are client-side wrapping/retry details and do not alone establish the HTTP status returned by OpenAI. Error logs retain the actual upstream HTTP status (including HTTP 429 failures that precede SSE); they do not replace it with Copilot's 502. Share only the sanitized **Responses transport** and error log lines, including an available request ID; no account access or real inference was used to verify the current fix.
 
 ### “The service did not return SSE” or a Copilot 502
 
@@ -164,7 +187,7 @@ npm run compile
 npm run package
 ```
 
-Packaging creates `artifacts/lab530.chatgpt-subscription-for-copilot-0.1.0.vsix` locally. It does **not** upload, publish, tag, or deploy anything. The `vscode:prepublish` hook only compiles the bundle before local packaging.
+Packaging creates `artifacts/lab530.chatgpt-subscription-for-copilot-0.1.1.vsix` locally. It does **not** upload, publish, tag, or deploy anything. The `vscode:prepublish` hook only compiles the bundle before local packaging.
 
 Version **0.1.0** was published as `lab530.chatgpt-subscription-for-copilot` through official OIDC Trusted Publishing and independently verified in the public Marketplace. The exact release commit, workflow run, and artifact hash are recorded in [PUBLISHING.md](PUBLISHING.md). The manual [publishing workflow](.github/workflows/publish2marketplace.yml) verifies the exact reviewed main commit, version, tests, archive contents, and package hash before using official OIDC Trusted Publishing. It never publishes on a push, PR, or tag. See [PUBLISHING.md](PUBLISHING.md) for the required publisher policy and approval steps. The project-level minimatch override pins vsce's dependency to 11.0.1 to address the reported globparts-amplification advisory; packaging has been tested with this override.
 

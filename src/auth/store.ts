@@ -6,6 +6,8 @@ import { AppError, ISSUER, checkAbort, deadline, record } from '../core';
 import type { Registration } from './oauth';
 
 export const SECRET_KEY = 'chatgptSub.accounts.v1';
+export const MAX_REGISTRATIONS = 100;
+export const MAX_VAULT_LENGTH = 1024 * 1024;
 export interface VaultState { version: 1; hostId: string; epoch: string; active?: string; registrations: Registration[] }
 export interface SecretStore { get(key: string): PromiseLike<string | undefined>; store(key: string, value: string): PromiseLike<void> }
 export interface AccountStore { transact<T>(work: (state: VaultState, signal: AbortSignal) => Promise<T> | T, signal: AbortSignal): Promise<T> }
@@ -13,11 +15,11 @@ export function newVault(): VaultState { return { version: 1, hostId: `urn:uuid:
 export function parseVault(raw: string | undefined): VaultState {
   if (raw === undefined) return newVault();
   try {
-    if (raw.length > 1024 * 1024) throw new Error();
+    if (raw.length > MAX_VAULT_LENGTH) throw new Error();
     const state = record(JSON.parse(raw));
     if (!state || state.version !== 1 || typeof state.hostId !== 'string' ||
       !/^urn:uuid:[a-f0-9-]{36}$/i.test(state.hostId) || typeof state.epoch !== 'string' ||
-      !Array.isArray(state.registrations) || state.registrations.length > 100) throw new Error();
+      !Array.isArray(state.registrations) || state.registrations.length > MAX_REGISTRATIONS) throw new Error();
     const ids = new Set<string>();
     for (const value of state.registrations) {
       const reg = record(value);
@@ -35,6 +37,14 @@ export function parseVault(raw: string | undefined): VaultState {
     if (state.active !== undefined && (typeof state.active !== 'string' || !ids.has(state.active))) throw new Error();
     return state as unknown as VaultState;
   } catch { throw new AppError('Saved account data is invalid and has not been overwritten. Check extension storage or restore a backup.', 'auth'); }
+}
+export function serializeVault(state: VaultState): string {
+  try {
+    const next = JSON.stringify(state);
+    if (typeof next !== 'string') throw new Error();
+    parseVault(next); // Never commit data that the next transaction cannot read.
+    return next;
+  } catch { throw new AppError('The account changes are invalid or exceed local storage limits. Existing saved account data has not been overwritten.', 'auth'); }
 }
 async function pause(signal: AbortSignal): Promise<void> {
   checkAbort(signal);
@@ -68,7 +78,7 @@ export class LockedAccountStore implements AccountStore {
       const raw = await this.secrets.get(SECRET_KEY); checkAbort(operation.signal);
       const state = parseVault(raw);
       const value = await work(state, operation.signal); checkAbort(operation.signal);
-      const next = JSON.stringify(state);
+      const next = serializeVault(state); checkAbort(operation.signal);
       if (next !== raw) await this.secrets.store(SECRET_KEY, next);
       checkAbort(operation.signal); return value;
     } finally {

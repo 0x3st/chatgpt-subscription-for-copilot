@@ -4,7 +4,8 @@ import { NAMESPACE, type Prepared } from './request';
 import { events, type NonStreamFormat } from './sse';
 import { collectReplay, type ReplayGroup } from './replay';
 export interface ToolCall { id: string; name: string; input: object }
-export interface Completion { tools: ToolCall[]; replay: ReplayGroup[]; inputTokens?: number; outputTokens?: number }
+export interface TokenUsage { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number }
+export interface Completion extends TokenUsage { tools: ToolCall[]; replay: ReplayGroup[] }
 export interface TransportInfo { status: number; contentType: string; requestId?: string }
 function transportInfo(response: Response): TransportInfo {
   const mediaType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
@@ -95,9 +96,12 @@ export async function complete(http: HttpClient, access: string, prepared: Prepa
         if (prepared.body.tool_choice === 'required' && !calls.length) throw new AppError('The model did not produce the required tool call.');
         const usage = record(completed.usage);
         const input = usage?.input_tokens; const output = usage?.output_tokens;
+        const cached = record(usage?.input_tokens_details)?.cached_tokens;
+        const validInput = typeof input === 'number' && Number.isSafeInteger(input) && input >= 0;
         return { tools: calls, replay: Array.isArray(completed.output) ? collectReplay(completed.output) : [],
-          ...(typeof input === 'number' && Number.isSafeInteger(input) && input >= 0 ? { inputTokens: input } : {}),
-          ...(typeof output === 'number' && Number.isSafeInteger(output) && output >= 0 ? { outputTokens: output } : {}) };
+          ...(validInput ? { inputTokens: input } : {}),
+          ...(typeof output === 'number' && Number.isSafeInteger(output) && output >= 0 ? { outputTokens: output } : {}),
+          ...(validInput && typeof cached === 'number' && Number.isSafeInteger(cached) && cached >= 0 && cached <= input ? { cachedInputTokens: cached } : {}) };
       }
     }
     throw new AppError(`The connection ended before response.completed (${transportDetails(info)}). No tools were executed for this turn.`,

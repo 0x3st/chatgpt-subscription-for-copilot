@@ -2,6 +2,18 @@ import * as vscode from 'vscode';
 import { isAbsolute } from 'node:path';
 import { AppError } from './core';
 import type { Content, Message, Part } from './chat/request';
+import type { TokenUsage } from './chat/client';
+
+/** Non-public Copilot compatibility payload carried by the stable DataPart API. */
+export function copilotUsagePart(usage: TokenUsage): vscode.LanguageModelDataPart | undefined {
+  const { inputTokens: input, outputTokens: output, cachedInputTokens: cached } = usage;
+  if (typeof input !== 'number' || !Number.isSafeInteger(input) || input < 0 ||
+    typeof output !== 'number' || !Number.isSafeInteger(output) || output < 0 || !Number.isSafeInteger(input + output)) return undefined;
+  const data = { prompt_tokens: input, completion_tokens: output, total_tokens: input + output,
+    ...(typeof cached === 'number' && Number.isSafeInteger(cached) && cached >= 0 && cached <= input
+      ? { prompt_tokens_details: { cached_tokens: cached } } : {}) };
+  return new vscode.LanguageModelDataPart(new TextEncoder().encode(JSON.stringify(data)), 'usage');
+}
 /** Desktop profiles can expose local storage through vscode-userdata:, not just file:. */
 export function localStorageDirectory(uri: vscode.Uri, uiKind: vscode.UIKind): string {
   if (uiKind !== vscode.UIKind.Desktop || !['file', 'vscode-userdata'].includes(uri.scheme) || uri.authority || !isAbsolute(uri.fsPath)) {

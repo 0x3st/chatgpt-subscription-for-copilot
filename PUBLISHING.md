@@ -5,6 +5,7 @@ This document describes the release workflow. Its presence, a source push, or a 
 - Publisher: **`lab530`**.
 - Extension: **`lab530.chatgpt-subscription-for-copilot`**.
 - Initial version: **`0.1.0`**.
+- Current patch candidate: **`0.1.1`**, authorized by the owner for source upload and Marketplace publication after tests. Publication is not established until the exact workflow artifact and public listing are independently verified.
 - Source: <https://github.com/0x3st/chatgpt-subscription-for-copilot>.
 - Workflow: **`.github/workflows/publish2marketplace.yml`**.
 - Publication status: **`0.1.0` published and independently verified in the public Marketplace through official OIDC on 2026-11-08**.
@@ -50,7 +51,7 @@ An authorized release operator may instead dispatch the same workflow locally, a
 
 ```bash
 gh workflow run publish2marketplace.yml --ref main \
-  -f version=0.1.0 \
+  -f version=0.1.1 \
   -f commit=REVIEWED_FULL_40_CHARACTER_MAIN_COMMIT_SHA \
   -f confirm_publish=true \
   -f auth_only=false
@@ -80,7 +81,7 @@ npm audit --audit-level=low
 npm run package
 ```
 
-Packaging creates `artifacts/lab530.chatgpt-subscription-for-copilot-0.1.0.vsix` locally. `vscode:prepublish` compiles only; it does not publish. Review the exact archive and hash before approving publication.
+Packaging creates `artifacts/lab530.chatgpt-subscription-for-copilot-0.1.1.vsix` locally. `vscode:prepublish` compiles only; it does not publish. Review the exact archive and hash before approving publication.
 
 ## Acceptance boundaries
 
@@ -88,6 +89,7 @@ Packaging creates `artifacts/lab530.chatgpt-subscription-for-copilot-0.1.0.vsix`
 - Full live tool execution/results/reasoning replay, account lifecycle, cancellation, and Windows/Linux/remote behavior remain to be accepted. Offline tests do not establish upstream availability.
 - OpenAI SIWC remains Preview and subject to eligibility, distribution, branding, usage, and service limitations. Packaging or Marketplace publication does not grant upstream access.
 - The one-time plan-use notice follows successful enabled sign-in. Failed/canceled or non-enabled sign-in does not mark it shown; earlier acknowledgments are honored without a duplicate popup.
+- Version 0.1.1 forwards actual successful token counts using the explicitly approved non-public Copilot `usage` MIME convention over stable `LanguageModelDataPart`. It also enforces default input budgets, validates vault writes, reuses retained App registrations for reconnect, and locally pauses repeated quota requests for 60 seconds. The local pause is not a quota reset estimate; the user's upstream 50%/100% discrepancy remains unresolved.
 - Native thinking/context submenus use DeepSeek-style non-public compatibility metadata while retaining stable provider registration/streaming and no proposed-API opt-in. Mock/CJS tests are not live UI acceptance; verify controls and context budgeting in the target VS Code/Copilot build before claiming compatibility. Catalog limits or explicit metadata overrides determine available budgets; the UI does not manufacture a 1M context window.
 - Final store presentation, screenshots, support readiness, and upstream distribution requirements should be reviewed before publication.
 

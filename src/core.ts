@@ -57,17 +57,27 @@ export function apiError(status: number, body: unknown, requestId?: string): App
   const code = identifier(error?.code ?? object?.error ?? object?.code);
   const request = identifier(requestId);
   let kind: ErrorKind = status === 401 ? 'auth' : status === 403 ? 'permission' : status === 429 ? 'quota' : 'network';
-  let message = `OpenAI request failed (HTTP ${status}).`;
+  let message = status === 200 ? 'OpenAI returned an error despite successful HTTP headers (HTTP 200).' : `OpenAI request failed (HTTP ${status}).`;
   if (status === 400) { kind = 'protocol'; message += ' The selected model or subscription route does not support this request.'; }
   if (kind === 'auth') message += ' Check your account authorization and sign in again if needed.';
   if (kind === 'permission') message += ' Your account, workspace, region, or permissions do not allow access. Do not repeatedly retry.';
   if (kind === 'quota') message += ' A subscription or application usage limit has been reached. Check ChatGPT Usage.';
   if (status >= 500) message += ' The service is temporarily unavailable. Try again later; your credentials have not been cleared.';
-  if (code === 'subscription_sharing_usage_limit_exceeded') { kind = 'quota'; message = 'A subscription or application usage limit has been reached. Check ChatGPT Usage.'; }
-  if (code === 'subscription_sharing_user_not_eligible') { kind = 'permission'; message = 'This account or workspace is not eligible for subscription sharing.'; }
-  if (code === 'subscription_sharing_unsupported_capability') { kind = 'protocol'; message = 'This subscription route does not support the requested capability. Adjust the model or tools.'; }
-  if (code === 'subscription_sharing_invalid_user') { kind = 'auth'; message = 'The subscription identity could not be verified. Check your authorization.'; }
-  if (code === 'subscription_sharing_usage_unavailable') message = 'Subscription usage is temporarily unavailable. Try again later.';
+  // SSE errors arrive after successful HTTP headers. Classify known codes independently
+  // of transport status, without trusting or exposing the service's free-form message.
+  const known: Record<string, { kind: ErrorKind; message: string }> = {
+    rate_limit_exceeded: { kind: 'quota', message: 'OpenAI reported a rate limit. Pause requests and try again later.' },
+    insufficient_quota: { kind: 'quota', message: 'OpenAI reported insufficient quota for this request. Check ChatGPT Usage and the active account/workspace.' },
+    context_length_exceeded: { kind: 'protocol', message: 'OpenAI rejected the conversation because it exceeds the model context limit. Compact the conversation or start a new chat. No history was silently dropped.' },
+    invalid_prompt: { kind: 'protocol', message: 'OpenAI rejected the supplied prompt. Change the request before retrying.' },
+    subscription_sharing_usage_limit_exceeded: { kind: 'quota', message: 'OpenAI reported a subscription-sharing usage limit. An app-specific limit can apply; this does not establish that your entire ChatGPT plan is exhausted. Check ChatGPT Usage and the active account/workspace.' },
+    subscription_sharing_user_not_eligible: { kind: 'permission', message: 'This account or workspace is not eligible for subscription sharing.' },
+    subscription_sharing_route_not_supported: { kind: 'permission', message: 'This subscription route is not supported. Do not retry the same route or switch billing methods.' },
+    subscription_sharing_unsupported_capability: { kind: 'protocol', message: 'This subscription route does not support the requested capability. Adjust the model or tools.' },
+    subscription_sharing_invalid_user: { kind: 'auth', message: 'The subscription identity could not be verified. Check your authorization.' },
+    subscription_sharing_usage_unavailable: { kind: 'network', message: 'Subscription usage is temporarily unavailable. This is not confirmation that a usage limit was reached. Try again later.' }
+  };
+  if (code && Object.hasOwn(known, code)) ({ kind, message } = known[code]!);
   if (code) message += ` Error code: ${code}.`;
   if (request) message += ` Request ID: ${request}.`;
   return new AppError(message, kind, status, code, request, error ? 'error' : object?.detail !== undefined ? 'detail' : 'other');

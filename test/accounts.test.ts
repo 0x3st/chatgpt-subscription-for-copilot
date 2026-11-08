@@ -77,6 +77,21 @@ test('successful login keeps accounts separate even when their emails match', as
   assert.equal(store.state.registrations.length, 2); assert.equal(store.state.active, 'oaiapp_new'); assert.equal(store.state.hostId, hostId);
   await manager.select('oaiapp_A', signal()); assert.equal((await manager.credentials(signal())).clientId, 'oaiapp_A'); manager.dispose();
 });
+test('sign-out and reconnect reuse the retained issued client ID rather than registering another app', async () => {
+  const store = new MemoryStore([registration()]); const manager = new AccountManager(store, oauth());
+  try {
+    await manager.signOut(signal());
+    await manager.login(async url => {
+      const auth = new URL(url);
+      assert.equal(auth.searchParams.get('client_id'), 'oaiapp_A');
+      assert.equal(auth.searchParams.has('agent_name_hint'), false);
+      assert.equal(auth.searchParams.has('id_token_hint'), false, 'Signed-out tokens must not be reused');
+      await browser(url);
+    }, signal(), 'oaiapp_A');
+    assert.equal(store.state.registrations.length, 1); assert.equal(store.state.active, 'oaiapp_A');
+    assert.equal((await manager.credentials(signal())).clientId, 'oaiapp_A');
+  } finally { manager.dispose(); }
+});
 test('sign-out cancels an in-progress login instead of allowing it to resurrect tokens', async () => {
   const store = new MemoryStore([registration()]); const started = deferred(); const finish = deferred();
   const manager = new AccountManager(store, oauth({ exchange: async () => { started.resolve(); await finish.promise; return registration('oaiapp_new'); } }));

@@ -143,7 +143,7 @@ test('selected context budget rejects excess history or tool definitions instead
     }, { report() {} }, token), /No history was dropped/);
     await assert.rejects(f.provider.provideLanguageModelChatResponse(info, [message()], {
       ...options, modelConfiguration: { contextSize: 1024 }, tools: [{ name: 'tool', description: text, inputSchema: {} }]
-    }, { report() {} }, token), /selected input context budget/);
+    }, { report() {} }, token), /effective input context budget/);
     assert.equal(f.bodies.length, 0);
     await f.provider.provideLanguageModelChatResponse(info, [message(text)], { ...options, modelConfiguration: { contextSize: 16000 } }, { report() {} }, token);
     assert.equal(JSON.stringify(f.bodies[0]!.input).includes(text), true);

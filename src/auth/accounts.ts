@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { AppError, DIRECT_SCOPE, UNUSABLE_REFRESH_CODES, checkAbort, deadline } from '../core';
 import { listenForOAuth } from './callback';
 import { authorizeUrl, newAttempt, type OAuthClient, type Registration } from './oauth';
-import type { AccountStore } from './store';
+import { MAX_REGISTRATIONS, type AccountStore } from './store';
 
 export interface AccountSummary { clientId: string; label: string; signedIn: boolean; enabled: boolean }
 export interface Snapshot { epoch: string; active?: string; accounts: AccountSummary[] }
@@ -39,8 +39,10 @@ export class AccountManager {
     const operation = deadline(5 * 60000, [signal, loginAbort.signal]);
     try {
       const saved = await this.store.transact(state => ({ hostId: state.hostId, epoch: state.epoch,
+        atCapacity: state.registrations.length >= MAX_REGISTRATIONS,
         previous: selectedClientId ? structuredClone(state.registrations.find(reg => reg.clientId === selectedClientId)) : undefined }), operation.signal);
       if (selectedClientId && !saved.previous) throw new AppError('The selected account registration no longer exists.', 'auth');
+      if (!saved.previous && saved.atCapacity) throw new AppError(`At most ${MAX_REGISTRATIONS} account registrations can be saved. Reconnect an existing registration in Manage Accounts instead. Existing accounts have not been changed.`, 'auth');
       const attempt = newAttempt();
       const callback = await listenForOAuth(attempt.state, operation.signal, saved.previous?.clientId);
       let result;

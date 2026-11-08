@@ -2,7 +2,7 @@
   "name": "chatgpt-subscription-for-copilot",
   "displayName": "ChatGPT Subscription for Copilot (Preview)",
   "description": "Use your ChatGPT subscription in Copilot Chat through official Sign in with ChatGPT (Preview).",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "lab530",
   "private": true,
   "license": "MIT",

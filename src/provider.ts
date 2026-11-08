@@ -7,7 +7,7 @@ import { estimateTokens, prepareRequest } from './chat/request';
 import { ReplayCache } from './chat/replay';
 import { AppError, checkAbort, deadline, safeError } from './core';
 import type { HttpClient } from './http';
-import { cancellation, normalizeMessage } from './vscodeAdapter';
+import { cancellation, copilotUsagePart, normalizeMessage } from './vscodeAdapter';
 import { contextWindowError, inputBudget, modelOverride, reasoningEffort, saveModelOverride, userSetting } from './modelSettings';
 import { pickerEffort, pickerInputBudget, pickerSchema, type NativeModelInformation, type NativeResponseOptions } from './modelPicker';
 
@@ -27,9 +27,29 @@ export class ChatGPTProvider implements vscode.LanguageModelChatProvider<NativeM
   private catalog: { epoch: string; clientId: string; at: number; models: ChatModel[] } | undefined;
   private readonly session = randomUUID();
   private readonly replay = new ReplayCache();
+  private readonly quotaPauses = new Map<string, { until: number; error: AppError }>();
   constructor(private readonly accounts: AccountManager, private readonly http: HttpClient,
     private readonly signIn: (clientId?: string) => Promise<boolean>, private readonly log: vscode.LogOutputChannel) {}
-  refresh(): void { this.catalog = undefined; this.changes.fire(); }
+  refresh(resumeRequests = false): void {
+    this.catalog = undefined;
+    if (resumeRequests) this.quotaPauses.clear();
+    this.changes.fire();
+  }
+  private checkQuotaPause(scope: string): void {
+    const now = Date.now();
+    for (const [key, value] of this.quotaPauses) if (value.until <= now) this.quotaPauses.delete(key);
+    const pause = this.quotaPauses.get(scope); if (pause) throw pause.error;
+  }
+  private pauseQuota(scope: string | undefined, error: unknown): unknown {
+    if (!scope || !(error instanceof AppError) || error.kind !== 'quota') return error;
+    // Re-throwing the cached error must not extend the fixed local pause.
+    if (this.quotaPauses.get(scope)?.error === error) return error;
+    const paused = new AppError(`${error.message} Further requests for this account are paused locally for up to 60 seconds to avoid repeated upstream retries. This is not a quota reset estimate. Use ChatGPT Subscription: Refresh Models to clear the local pause after checking access.`,
+      error.kind, error.status, error.code, error.requestId, error.bodyShape);
+    this.quotaPauses.set(scope, { until: Date.now() + 60000, error: paused });
+    while (this.quotaPauses.size > 100) this.quotaPauses.delete(this.quotaPauses.keys().next().value!);
+    return paused;
+  }
   private async models(credentials: { epoch: string; clientId: string; access: string }, signal: AbortSignal): Promise<ChatModel[]> {
     const cache = this.catalog;
     if (cache?.epoch === credentials.epoch && cache.clientId === credentials.clientId && Date.now() - cache.at < 300000) return cache.models;
@@ -109,8 +129,11 @@ export class ChatGPTProvider implements vscode.LanguageModelChatProvider<NativeM
     options: NativeResponseOptions, progress: vscode.Progress<vscode.LanguageModelResponsePart>, token: vscode.CancellationToken): Promise<void> {
     const config = settings(); const cancel = cancellation(token);
     const operation = deadline(config.timeoutMs, [cancel.signal, this.accounts.signal]);
+    let requestScope: string | undefined;
     try {
       const credentials = await this.accounts.credentials(operation.signal);
+      requestScope = JSON.stringify([credentials.clientId, credentials.epoch]);
+      this.checkQuotaPause(requestScope);
       const models = await this.models(credentials, operation.signal);
       const model = models.find(item => editorId(item.id) === modelInfo.id);
       if (!model) throw new AppError('The selected model is not available for the current account. Refresh the model list.', 'permission');
@@ -122,9 +145,9 @@ export class ChatGPTProvider implements vscode.LanguageModelChatProvider<NativeM
         name: tool.name, description: tool.description, schema: tool.inputSchema ?? { type: 'object', properties: {} }
       })), options.toolMode === vscode.LanguageModelChatToolMode.Required, effort, config.summary,
       `${this.session}-${createHash('sha256').update(credentials.clientId + credentials.epoch).digest('hex').slice(0, 16)}`));
-      if (budget !== undefined && estimateTokens(normalized) + estimateTokens(String(prepared.body.instructions)) +
+      if (estimateTokens(normalized) + estimateTokens(String(prepared.body.instructions)) +
         estimateTokens(JSON.stringify(prepared.body.tools ?? [])) + 64 > budget) {
-        throw new AppError('The conversation exceeds the selected input context budget. Start a new chat or select a larger budget. No history was dropped.');
+        throw new AppError('The conversation exceeds the effective input context budget. Start a new chat or select a larger budget. No history was dropped.');
       }
       let summary = false; let answer = false;
       const result = await complete(this.http, credentials.access, prepared, operation.signal, (type, value) => {
@@ -143,11 +166,14 @@ export class ChatGPTProvider implements vscode.LanguageModelChatProvider<NativeM
       });
       checkAbort(operation.signal);
       this.replay.remember(replayScope, result.replay);
+      const usage = copilotUsagePart(result);
+      if (usage) progress.report(usage);
+      else this.log.info('Token usage was not reported: complete, valid input/output counts were unavailable. No zero usage was fabricated.');
       for (const call of result.tools) {
         checkAbort(operation.signal); progress.report(new vscode.LanguageModelToolCallPart(call.id, call.name, call.input));
       }
       this.log.info(`Request completed; input tokens: ${result.inputTokens ?? 'unknown'}; output tokens: ${result.outputTokens ?? 'unknown'}; tool calls: ${result.tools.length}.`);
-    } catch (error) { throw this.translate(error); }
+    } catch (error) { throw this.translate(this.pauseQuota(requestScope, error)); }
     finally { operation.dispose(); cancel.dispose(); }
   }
   async provideTokenCount(_model: vscode.LanguageModelChatInformation, value: string | vscode.LanguageModelChatRequestMessage, token: vscode.CancellationToken): Promise<number> {
@@ -155,11 +181,11 @@ export class ChatGPTProvider implements vscode.LanguageModelChatProvider<NativeM
     return estimateTokens(typeof value === 'string' ? value : [normalizeMessage(value)]);
   }
   private translate(error: unknown): Error {
-    const safe = safeError(error); this.log.warn(`${safe.kind}: ${safe.message}`);
+    const safe = safeError(error); this.log.warn(`${safe.kind}: ${safe.message}${safe.status !== undefined ? ` [upstream HTTP ${safe.status}]` : ''}`);
     if (safe.kind === 'cancelled') return new vscode.CancellationError();
     if (safe.kind === 'auth' || safe.kind === 'permission') return vscode.LanguageModelError.NoPermissions(safe.message);
     if (safe.kind === 'quota') return vscode.LanguageModelError.Blocked(safe.message);
     return safe;
   }
-  dispose(): void { this.replay.clear(); this.changes.dispose(); }
+  dispose(): void { this.replay.clear(); this.quotaPauses.clear(); this.changes.dispose(); }
 }
