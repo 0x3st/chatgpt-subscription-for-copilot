@@ -3,6 +3,8 @@ import { readdir, mkdir } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 await mkdir('.test-build', { recursive: true });
+// VSCE file-selection regressions need the production file even on a clean checkout.
+await import('./build.mjs');
 // Exercise the same bundled CJS entry point that will ship, not only source imports.
 await build({ entryPoints: ['src/extension.ts'], bundle: true, platform: 'node', target: 'node22',
   format: 'cjs', outfile: '.test-build/extension-under-test.cjs', external: ['vscode'],
