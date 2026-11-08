@@ -5,6 +5,7 @@ import { LockedAccountStore, SECRET_KEY } from './auth/store';
 import { USAGE, safeError } from './core';
 import { HttpClient } from './http';
 import { ChatGPTProvider, VENDOR } from './provider';
+import { refreshNativePicker } from './modelPicker';
 import { cancellation, localStorageDirectory } from './vscodeAdapter';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -25,13 +26,6 @@ export function activate(context: vscode.ExtensionContext): void {
     if (pendingLogin) return pendingLogin;
     pendingLogin = (async () => {
       try {
-        if (!context.globalState.get<boolean>('previewConsent.v1')) {
-          const yes = await vscode.window.showWarningMessage(
-            'Continue with ChatGPT: this extension uses the official OpenAI Preview subscription-sharing feature. Requests and the code, images, and tool results supplied by Copilot are sent to OpenAI and count toward your shared usage limits. It will not automatically switch to API-key billing.',
-            { modal: true }, 'Continue');
-          if (yes !== 'Continue') return false;
-          await context.globalState.update('previewConsent.v1', true);
-        }
         await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification,
           title: 'Continue with ChatGPT (Preview)', cancellable: true }, async (_progress, token) => {
           const cancel = cancellation(token);
@@ -44,8 +38,18 @@ export function activate(context: vscode.ExtensionContext): void {
         });
         const snapshot = await accounts.snapshot(lifetime.signal);
         const active = snapshot.accounts.find(item => item.clientId === snapshot.active);
-        if (active?.enabled) void vscode.window.showInformationMessage(`Connected: ${active.label} (Preview). Enable its models in Copilot's Manage Models.`);
-        else void vscode.window.showWarningMessage('Signed in, but ChatGPT subscription access was not granted. Reauthorize in Manage Accounts. No inference request was made.');
+        if (active?.enabled) {
+          // Honor earlier acknowledgments: move the existing notice, do not add a second one.
+          if (context.globalState.get<boolean>('previewConsent.v1') !== true) {
+            await vscode.window.showInformationMessage("You're using your ChatGPT plan", {
+              modal: true,
+              detail: 'Eligible AI requests in this extension use your ChatGPT plan and count toward its shared usage limits. Code, images, and tool results supplied by Copilot are sent to OpenAI through its official Preview subscription-sharing feature. Manage usage and limits in ChatGPT Settings. The extension will not automatically switch to API-key billing.'
+            }, 'Got it');
+            if (lifetime.signal.aborted) return false;
+            await context.globalState.update('previewConsent.v1', true);
+          }
+          void vscode.window.showInformationMessage(`Connected: ${active.label} (Preview). Enable its models in Copilot's Manage Models.`);
+        } else void vscode.window.showWarningMessage('Signed in, but ChatGPT subscription access was not granted. Reauthorize in Manage Accounts. No inference request was made.');
         return !!active?.enabled;
       } catch (error) { report(error); return false; }
     })().finally(() => { pendingLogin = undefined; });
@@ -53,10 +57,12 @@ export function activate(context: vscode.ExtensionContext): void {
   };
   const provider = new ChatGPTProvider(accounts, http, clientId => signIn(clientId), log);
   context.subscriptions.push(provider, accounts.onChange(() => provider.refresh()),
+    vscode.workspace.onDidChangeConfiguration(event => { if (event.affectsConfiguration('chatgptSub')) provider.refresh(); }),
     vscode.lm.registerLanguageModelChatProvider(VENDOR, provider),
     context.secrets.onDidChange(event => {
       if (event.key === SECRET_KEY) void accounts.synchronize(lifetime.signal).catch(report);
     }));
+  context.subscriptions.push(refreshNativePicker(() => provider.refresh(), lifetime.signal));
   const signOut = async () => {
     const yes = await vscode.window.showWarningMessage('Sign out of the active ChatGPT account and attempt to revoke its renewable session? Other saved accounts are unaffected.', { modal: true }, 'Sign Out');
     if (yes !== 'Sign Out') return;
@@ -78,6 +84,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }));
     choices.push({ label: '$(add) Continue with ChatGPT — Add an account or workspace', run: () => signIn() },
+      { label: '$(settings-gear) Advanced Model Defaults', run: () => provider.configureModel(lifetime.signal) },
       { label: '$(refresh) Refresh Models', run: async () => provider.refresh() },
       { label: '$(link-external) ChatGPT Usage', run: () => vscode.env.openExternal(vscode.Uri.parse(USAGE)) });
     if (snapshot.active) choices.push({ label: '$(sign-out) Sign Out of Active Account', run: signOut });
@@ -86,6 +93,7 @@ export function activate(context: vscode.ExtensionContext): void {
   };
   for (const [command, action] of [
     ['chatgptSub.manage', manage], ['chatgptSub.signIn', () => signIn()], ['chatgptSub.signOut', signOut],
+    ['chatgptSub.configureModel', () => provider.configureModel(lifetime.signal)],
     ['chatgptSub.refreshModels', async () => { provider.refresh(); void vscode.window.showInformationMessage('Model cache cleared. Copilot will query the catalog again.'); }],
     ['chatgptSub.usage', () => vscode.env.openExternal(vscode.Uri.parse(USAGE))], ['chatgptSub.logs', async () => log.show(true)]
   ] as const) context.subscriptions.push(vscode.commands.registerCommand(command, guarded(action)));

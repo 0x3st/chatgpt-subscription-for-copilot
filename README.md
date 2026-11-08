@@ -17,9 +17,9 @@ The extension's default interface, account dialogs, browser callback pages, diag
 
 ## Install and connect
 
-1. Open **Extensions → Install from VSIX…** and select the locally built `lab530.chatgpt-for-copilot-0.1.0.vsix`.
+1. Open **Extensions → Install from VSIX…** and select the locally built `lab530.chatgpt-subscription-for-copilot-0.1.0.vsix`.
 2. Run **ChatGPT Subscription: Continue with ChatGPT**.
-3. Read the Preview and data-sharing notice, then complete authorization on the official OpenAI page in your browser.
+3. Complete authorization on the official OpenAI page in your browser. After the first successful sign-in with subscription access, a dismissible notice confirms ChatGPT plan usage and shared limits. Earlier notice acknowledgments are retained; failed or declined authorization does not mark it as shown.
 4. In Copilot Chat, open the model picker → **Manage Models…** → **ChatGPT Subscription (Preview)** and enable an available model.
 5. Select the model and start a chat. Copilot, not this extension, executes tools and controls approvals.
 
@@ -27,21 +27,21 @@ Silent model discovery never opens a browser. Authentication failures do not sil
 
 ### Updating a local build
 
-For an existing installation under the **same `lab530` publisher**, run this from the project directory:
+For an existing installation of **the same extension ID, `lab530.chatgpt-subscription-for-copilot`**, run this from the project directory:
 
 ```bash
-code --install-extension ./artifacts/lab530.chatgpt-for-copilot-0.1.0.vsix --force
+code --install-extension ./artifacts/lab530.chatgpt-subscription-for-copilot-0.1.0.vsix --force
 ```
 
 Then run **Developer: Reload Window**. You can also reinstall through **Install from VSIX…**. Updating the same extension identity does not require signing in again solely because of an SSE parsing fix.
 
-### Migrating from the old `local-dev` build
+### Migrating from earlier builds
 
-`local-dev.chatgpt-for-copilot` and `lab530.chatgpt-for-copilot` are **different extension identities**. The new build will not overwrite the old extension or inherit its SecretStorage.
+The earlier IDs `local-dev.chatgpt-for-copilot` and `lab530.chatgpt-for-copilot` differ from the current **`lab530.chatgpt-subscription-for-copilot`** identity. Installing the current extension does not overwrite either older ID or inherit its SecretStorage.
 
 1. If appropriate, sign out in the old extension to attempt remote session revocation.
 2. Disable or uninstall the old extension before enabling the new one. Running both can conflict over commands and the model provider vendor.
-3. Install the `lab530` build, reload the window, and authorize the new extension.
+3. Install `lab530.chatgpt-subscription-for-copilot`, reload the window, and authorize the new extension.
 
 Credentials are never automatically read or copied from the old extension, Pi, or Codex.
 
@@ -65,6 +65,7 @@ All commands use the **ChatGPT Subscription** category.
 | Continue with ChatGPT | Add an account or workspace registration |
 | Manage Accounts | Select a saved registration, reconnect, or grant subscription access |
 | Sign Out of Active Account | Cancel requests, attempt session revocation, and clear the active account's local tokens |
+| Advanced Model Defaults | Set saved defaults or override missing input-limit metadata; ordinary chat controls are in the native model submenu |
 | Refresh Models | Clear the model catalog cache |
 | Open ChatGPT Usage | Open shared usage information |
 | Show Logs | Show operation status, token counts, sanitized errors, HTTP status, allowlisted response type, and request ID |
@@ -87,6 +88,34 @@ Settings are **machine-scoped**. The extension explicitly reads user/default val
 - **Reasoning summary:** rendered as ordinary text without proposed APIs. This is the provider's summary, not access to private chain-of-thought.
 - **Total request timeout:** 10–1,800 seconds, including credential refresh and streaming.
 
+### Thinking effort and context window
+
+In **Copilot Chat's model picker**, open the arrow/submenu beside a ChatGPT model. Choose **Thinking effort** and **Context window** there, without a command-palette detour or separate model variants. The native row shows the selected settings, for example **High · Max 1M** when the model's available input budget is 1M. Smaller budgets have their own native choices. No 1M capacity is fabricated when catalog metadata is missing.
+
+The selected thinking level reaches OpenAI as `reasoning.effort`. The selected `contextSize` is a local Copilot input budget, never an unsupported Responses request field. Copilot uses its native context configuration for prompt budgeting; the provider also rejects an estimated over-budget request without dropping history or tool results. Token counts remain estimates, not a guarantee against upstream context-limit errors.
+
+**Compatibility boundary:** registration and streaming use the stable `LanguageModelChatProvider` API and no proposed APIs are enabled. The inline controls themselves use DeepSeek-style **non-public** `configurationSchema`, `modelConfiguration`, and `configuration` compatibility metadata. These fields are not a GA API contract and may change across VS Code/Copilot versions. Model information is refreshed once after Copilot becomes active, observed passively without activating it or polling. Live UI acceptance in the user's editor remains pending.
+
+Copilot owns the persistence/scope of its native model choices; request-carried values do not rewrite this extension's saved defaults. For advanced saved preferences, arbitrary input budgets, or manual overrides of missing catalog metadata, use **ChatGPT Subscription: Advanced Model Defaults** or the following user settings:
+
+```json
+{
+  "chatgptSub.modelOverrides": {
+    "your-visible-model-id": {
+      "reasoningEffort": "high",
+      "contextWindow": 128000
+    }
+  }
+}
+```
+
+- For each field, explicit `modelOptions` takes precedence over native `modelConfiguration` and legacy `configuration` values. Native **Use saved setting** uses the per-model setting, then the global setting, then the server default. Per-model `default` means the server chooses, even when a global effort is set. Unsupported catalog-declared efforts fail before inference instead of silently changing levels.
+- When the catalog reports supported efforts, only those levels are offered. If capability metadata is absent, the dialog warns that the service may reject an explicit effort.
+- `contextWindow` is the **input token budget advertised to Copilot**, not a request parameter, an output-token cap, or a way to increase server capacity. Values must be integers from 1,024 to 2,000,000. A catalog-declared input limit is always respected, including after switching accounts.
+- When input-limit metadata is missing, a manual override may replace the conservative 32K estimate. Use a verified limit for the model: an oversized budget can still be rejected by OpenAI. Leave the input blank to restore its default; output-limit metadata is unchanged.
+- Native context presets stay within the advertised budget ceiling, including any saved advanced override. Stale or invalid native values are rejected before inference; selection alone never overwrites defaults for other callers.
+- Unknown model IDs have no effect. Workspace settings cannot override these preferences, endpoints, or credentials.
+
 ## Authentication and privacy
 
 This implementation follows Pi 1.5.0's newer **`openai` → Sign in with ChatGPT** flow: dynamic client registration, the `chatgpt.tokens.use.direct` scope, issued-client token exchange and refresh, and the public Responses endpoint. It is **not** the legacy `openai-codex` Beta backend. Sharing the OAuth protocol does not mean every request field or the entire client implementation is identical to Pi.
@@ -96,7 +125,7 @@ This implementation follows Pi 1.5.0's newer **`openai` → Sign in with ChatGPT
 - The loopback OAuth callback binds only to `127.0.0.1`, validates Host/path/state/client ID, and closes after authorization, cancellation, or a bounded sign-in deadline.
 - Cross-window locks live in this extension's local `globalStorage` directory and contain no tokens. Do not manually delete locks during sign-in; crash leftovers can take about a minute to become stale.
 - Conversation context supplied by Copilot—including code, images, and tool results—is sent to OpenAI. **`store: false` is not a promise of zero retention across the service chain.** Follow your organization's data policies.
-- No extension-operated proxy, analytics collector, or telemetry service is included. See the [privacy notice](https://github.com/0x3st/chatgpt-for-copilot/blob/HEAD/PRIVACY.md).
+- No extension-operated proxy, analytics collector, or telemetry service is included. See the [privacy notice](https://github.com/0x3st/chatgpt-subscription-for-copilot/blob/HEAD/PRIVACY.md).
 - Restricted Mode, web extension hosts, and virtual workspaces are not supported. In SSH/container workspaces, the extension is configured to run as a local UI extension.
 
 ## Preview limitations
@@ -135,9 +164,9 @@ npm run compile
 npm run package
 ```
 
-Packaging creates `artifacts/lab530.chatgpt-for-copilot-0.1.0.vsix` locally. It does **not** upload, publish, tag, or deploy anything. The `vscode:prepublish` hook only compiles the bundle before local packaging.
+Packaging creates `artifacts/lab530.chatgpt-subscription-for-copilot-0.1.0.vsix` locally. It does **not** upload, publish, tag, or deploy anything. The `vscode:prepublish` hook only compiles the bundle before local packaging.
 
-The `lab530` publisher is configured; credentials and publishing permissions have not been verified. Publishing preparation is tracked separately in the source checkout. The project-level minimatch override pins vsce's dependency to 11.0.1 to address the reported globparts-amplification advisory; packaging has been tested with this override.
+The `lab530` publisher is configured; Marketplace authentication has not been exercised. The manual [publishing workflow](.github/workflows/publish2marketplace.yml) verifies the exact reviewed main commit, version, tests, archive contents, and package hash before using official OIDC Trusted Publishing. It never publishes on a push, PR, or tag. See [PUBLISHING.md](PUBLISHING.md) for the required publisher policy and approval steps. The project-level minimatch override pins vsce's dependency to 11.0.1 to address the reported globparts-amplification advisory; packaging has been tested with this override.
 
 The VSIX allowlist includes only the runtime bundle, manifest, English README/privacy notice, selected PNG icon, and license notices. It excludes tests, audit evidence, reference repositories, other brand assets, credentials, and node_modules. Runtime dependencies are bundled.
 
@@ -145,9 +174,9 @@ You can also press **F5** to open an extension development host. Any sign-in the
 
 ## Support, references, and license
 
-- [Source](https://github.com/0x3st/chatgpt-for-copilot)
-- [Issues](https://github.com/0x3st/chatgpt-for-copilot/issues) — do not include secrets or sensitive code.
-- [MIT license](https://github.com/0x3st/chatgpt-for-copilot/blob/HEAD/LICENSE). Bundled dependency notices are in `THIRD_PARTY_NOTICES.md`.
+- [Source](https://github.com/0x3st/chatgpt-subscription-for-copilot)
+- [Issues](https://github.com/0x3st/chatgpt-subscription-for-copilot/issues) — do not include secrets or sensitive code.
+- [MIT license](https://github.com/0x3st/chatgpt-subscription-for-copilot/blob/HEAD/LICENSE). Bundled dependency notices are in `THIRD_PARTY_NOTICES.md`.
 - Design references: [Pi](https://github.com/earendil-works/pi) and [DeepSeek V4 for Copilot](https://github.com/Vizards/deepseek-v4-for-copilot). This extension implements its own authentication and minimal protocol adapter.
 
 Official protocol references:

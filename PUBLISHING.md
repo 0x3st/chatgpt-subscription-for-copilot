@@ -1,45 +1,95 @@
-# Marketplace Publishing Preparation — Not Published
+# Manual Marketplace Publishing
 
-## Configured locally
+This document describes the release workflow. Its presence, a source push, or a locally built VSIX is **not** evidence of a successful Marketplace publication.
 
-- Publisher: **`lab530`**, supplied by the user through `https://marketplace.visualstudio.com/manage/publishers/lab530`.
-- Extension ID: **`lab530.chatgpt-for-copilot`**.
-- Local version: `0.1.0`; no release, tag, or Marketplace publication has been performed. The user explicitly approved source upload to the configured GitHub repository after confirming that real text inference works.
-- Local package: `artifacts/lab530.chatgpt-for-copilot-0.1.0.vsix`. The publisher prefix distinguishes it from previous `local-dev` packages.
-- Repository: `https://github.com/0x3st/chatgpt-for-copilot`, as provided by the user. Homepage and issue URLs are configured. Before the approved source upload, read-only checks confirmed a public, empty repository and push permission. Source upload approval does not authorize Marketplace publication.
-- Icon: the selected original conversation-bubble PNG, `assets/brand/icon.png` (256 × 256). The Lab 530 crest is **not** the product icon. Only the selected PNG is allowlisted for packaging.
-- Primary language: **English**, including the README, privacy notice, extension dialogs, account-management choices, callback pages, reasoning-summary heading, and errors/diagnostics. Multilingual conversation data remains supported.
-- Search keywords, Preview labeling, fixed official endpoints, independent SecretStorage, and no Beta/third-party/API-key billing fallback are preserved.
-- The English privacy notice is packaged. The real repository metadata is configured, and local packaging no longer suppresses the missing-repository check.
-- No PAT or publishing credentials have been requested, saved, read, or tested.
+- Publisher: **`lab530`**.
+- Extension: **`lab530.chatgpt-subscription-for-copilot`**.
+- Initial version: **`0.1.0`**.
+- Source: <https://github.com/0x3st/chatgpt-subscription-for-copilot>.
+- Workflow: **`.github/workflows/publish2marketplace.yml`**.
+- Publication status: **not yet published or authenticated through this workflow**.
 
-## Still required before publication
+## Configure Trusted Publishing once
 
-- [x] **Live text acceptance:** the user confirmed that real text inference now works after the SSE fix. The agent did not replay a real model request.
-- [ ] **Remaining live acceptance:** tool execution/results/reasoning replay, cancellation, sign-out, and cross-platform behavior. Mock tests alone do not establish these.
-- [ ] **Source availability verification:** after the approved source push, verify the remote commit and privacy/source URLs. Future pushes still require their own applicable authorization.
-- [ ] **SIWC distribution and branding:** check the current OpenAI Preview eligibility, open-source/distribution conditions, and branding requirements. Packaging success does not grant upstream access or permission.
-- [ ] **Store presentation:** finalize screenshots, description, support arrangements, and privacy disclosure. The README intentionally retains the current acceptance limitations and unofficial status.
-- [ ] **Publisher authentication:** the user authenticates locally. Do not paste a PAT/token into chat, repository files, printed logs, or command-line arguments; do not automatically read existing credentials.
-- [ ] **Specific publication approval:** after the problem is resolved and the exact target package is confirmed, obtain explicit permission for code upload and/or Marketplace publication. Creating a publisher or providing a repository URL is not such permission.
+In the [Marketplace publisher management page](https://marketplace.visualstudio.com/manage/publishers/lab530), open **Trusted Publishing → Create** and use:
 
-## Safe local checks
+| Field | Exact value |
+| --- | --- |
+| Repository owner | `0x3st` |
+| Repository | `chatgpt-subscription-for-copilot` |
+| Workflow | `publish2marketplace.yml` |
+| Environment | `marketplace` |
+
+If a policy was created for the former repository name `chatgpt-for-copilot`, update or recreate it for `chatgpt-subscription-for-copilot` before publication; GitHub URL redirects do not establish a matching OIDC policy. The current extension ID is `lab530.chatgpt-subscription-for-copilot`; the earlier `lab530.chatgpt-for-copilot` identity must not be published by this workflow.
+
+The workflow filename is entered without `.github/workflows/`. The environment must match exactly; do not leave it empty for this workflow. Publisher access and the policy must be configured by an authorized publisher administrator.
+
+In the repository's **Settings → Environments**, configure `marketplace` with appropriate required reviewers and restrict deployment branches to `main`. Repository administrators control these protections; naming an environment in YAML alone does not establish a reviewer requirement.
+
+No PAT repository secret is needed. Do not paste tokens into chat, source, printed logs, or command arguments, and do not import existing Pi/Codex/VSCE credentials. The build job has no OIDC permission. Only the publishing job receives `id-token: write` and exchanges its GitHub-issued identity through official `vsce --oidc`.
+
+**API version note:** the locked official `@vscode/vsce` 4.1.0 uses Marketplace `api-version=7.2-preview.1` for OIDC token exchange and its Gallery publishing client. This is a Preview-versioned interface, not GA. Its use is explicitly accepted for this project's Marketplace publishing only; it does not authorize unrelated Preview/Beta services or a PAT/billing fallback. Failure to authenticate, exchange identity, verify, or upload stops publication.
+
+## Review and approve each release
+
+1. Confirm the intended changes and run the local checks below. Local mocked tests do not replace live acceptance.
+2. Obtain the owner's approval for the current source upload and exact public release. Initial source-upload approval is not blanket permission for later changes or releases.
+3. Commit using the correct GitHub noreply author **and committer** identities and a valid configured signature. Verify the uploaded commit and GitHub's signature verification. Never silently rewrite published history.
+4. Confirm the full **40-character SHA on `main`** and the exact `package.json` version. The workflow neither bumps versions nor creates tags or GitHub releases.
+5. Verify that the Trusted Publishing policy and repository environment protections are configured. Do not trigger a speculative release to test credentials.
+6. Open **Actions → Publish to Visual Studio Marketplace → Run workflow**, select `main`, enter the exact version and reviewed commit, and explicitly check the public-publication confirmation.
+7. If environment approval is configured, review the verification job and its package hash before approving the publishing job.
+8. After success, independently verify the Marketplace extension ID/version/listing and retain the workflow run and VSIX hash. Update publication status only after verification.
+
+An authorized release operator may instead dispatch the same workflow locally, after the preceding checks and explicit release approval:
 
 ```bash
+gh workflow run publish2marketplace.yml --ref main \
+  -f version=0.1.0 \
+  -f commit=REVIEWED_FULL_40_CHARACTER_MAIN_COMMIT_SHA \
+  -f confirm_publish=true
+```
+
+The placeholder is intentionally invalid until replaced with the reviewed SHA. No workflow is triggered by a push, pull request, tag, or ordinary local packaging.
+
+## Workflow verification and safety gates
+
+- Exact repository, `main` branch, explicit confirmation, full commit SHA, publisher/name/repository URL, and manifest version are checked before dependency installation.
+- Dependencies use `npm ci --ignore-scripts`. Type checking, offline tests, dependency auditing, and packaging must all succeed.
+- The VSIX must contain exactly nine expected entries, including the selected conversation icon and privacy/license notices, with no source, credentials, reference clones, dependencies, or audit evidence.
+- The archived runtime must match both the production bundle and the CJS bundle exercised by integration tests.
+- The build records the VSIX SHA-256. The publishing job downloads the immutable artifact from the same workflow run and checks the hash again before uploading that exact VSIX.
+- Official GitHub Actions are pinned to full commit SHAs. Checkout does not persist credentials. Each job has a 15-minute hard timeout; concurrent releases are serialized without canceling an in-progress upload.
+- No `--skip-duplicate`, `--no-verify`, automatic billing/provider fallback, or automatic version bump is used. Retrying after an ambiguous upload requires checking the actual Marketplace state first.
+
+## Local checks
+
+```bash
+npm ci --ignore-scripts
 npm run check
 npm test
+npm audit --audit-level=low
 npm run package
 ```
 
-These commands perform type checking, mocked tests, and local packaging only. The `vscode:prepublish` hook compiles the bundle before packaging; it does not publish anything. The package whitelist must include the selected icon and privacy notice and exclude credentials, tests, audit evidence, reference repositories, unselected brand assets, and node_modules.
+Packaging creates `artifacts/lab530.chatgpt-subscription-for-copilot-0.1.0.vsix` locally. `vscode:prepublish` compiles only; it does not publish. Review the exact archive and hash before approving publication.
 
-## Migration from the old development identity
+## Acceptance boundaries
 
-Publisher is part of an extension's identity. `local-dev.chatgpt-for-copilot` and `lab530.chatgpt-for-copilot` are different extensions.
+- The user confirmed real text inference after the SSE compatibility fix. The agent did not replay a real model request.
+- Full live tool execution/results/reasoning replay, account lifecycle, cancellation, and Windows/Linux/remote behavior remain to be accepted. Offline tests do not establish upstream availability.
+- OpenAI SIWC remains Preview and subject to eligibility, distribution, branding, usage, and service limitations. Packaging or Marketplace publication does not grant upstream access.
+- The one-time plan-use notice follows successful enabled sign-in. Failed/canceled or non-enabled sign-in does not mark it shown; earlier acknowledgments are honored without a duplicate popup.
+- Native thinking/context submenus use DeepSeek-style non-public compatibility metadata while retaining stable provider registration/streaming and no proposed-API opt-in. Mock/CJS tests are not live UI acceptance; verify controls and context budgeting in the target VS Code/Copilot build before claiming compatibility. Catalog limits or explicit metadata overrides determine available budgets; the UI does not manufacture a 1M context window.
+- Final store presentation, screenshots, support readiness, and upstream distribution requirements should be reviewed before publication.
+
+## Migration from earlier development identities
+
+The earlier `local-dev.chatgpt-for-copilot` and `lab530.chatgpt-for-copilot` identities differ from the current `lab530.chatgpt-subscription-for-copilot` identity. Each has independent SecretStorage ownership.
 
 1. If appropriate, the user signs out in the old extension to attempt session revocation.
-2. Disable or uninstall the old extension before enabling the new one, avoiding duplicate command/vendor registration.
-3. Manually install the `lab530` VSIX, reload the window, and authorize the new extension.
-4. Do not automatically read or copy the old SecretStorage. Renaming a publisher does not migrate stored accounts.
+2. Disable or uninstall the old extension before enabling the new one to avoid duplicate commands/provider registration.
+3. Install the `lab530.chatgpt-subscription-for-copilot` VSIX, reload the window, and authorize it independently.
+4. Never automatically read or copy the old SecretStorage. A publisher rename does not migrate credentials.
 
-Source upload is authorized for the current GitHub step only. No installation, sign-out, credential migration, window reload, tag/release creation, or Marketplace publication is authorized by that approval.
+A release request does not authorize automatic login, credential migration, sign-out, or window reload in a user's editor.

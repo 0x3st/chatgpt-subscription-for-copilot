@@ -45,4 +45,4 @@ GitHub Copilot, VS Code, OpenAI, and installed extensions may have separate tele
 
 ## Support
 
-Use the project's [issue tracker](https://github.com/0x3st/chatgpt-for-copilot/issues) for non-sensitive questions. Do not post tokens, authorization/callback URLs, raw request/response bodies, or private code. Private publishing credentials should never be shared in an issue or chat.
+Use the project's [issue tracker](https://github.com/0x3st/chatgpt-subscription-for-copilot/issues) for non-sensitive questions. Do not post tokens, authorization/callback URLs, raw request/response bodies, or private code. Private publishing credentials should never be shared in an issue or chat.

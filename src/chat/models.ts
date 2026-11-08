@@ -2,7 +2,7 @@ import { API, AppError, record, text } from '../core';
 import type { HttpClient } from '../http';
 export const EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
 export type Effort = typeof EFFORTS[number];
-export interface ChatModel { id: string; name: string; inputTokens: number; outputTokens: number; images: boolean; tools: boolean; efforts: Effort[]; estimatedLimits: boolean }
+export interface ChatModel { id: string; name: string; inputTokens: number; outputTokens: number; images: boolean; tools: boolean; efforts: Effort[]; estimatedLimits: boolean; estimatedInputLimit?: boolean }
 export function editorId(id: string): string { return `chatgpt-sub-${Buffer.from(id).toString('base64url')}`; }
 function positive(value: unknown): number | undefined { return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined; }
 export function parseModels(value: unknown): ChatModel[] {
@@ -21,7 +21,8 @@ export function parseModels(value: unknown): ChatModel[] {
     const modalities = model.input_modalities ?? model.modalities;
     models.push({ id, name: text(model.display_name) ?? id, inputTokens: input ?? 32768, outputTokens: output ?? 4096,
       images: model.supports_images === true || (Array.isArray(modalities) && modalities.includes('image')),
-      tools: model.supports_tools !== false, efforts: [...new Set(efforts)], estimatedLimits: input === undefined || output === undefined });
+      tools: model.supports_tools !== false, efforts: [...new Set(efforts)], estimatedLimits: input === undefined || output === undefined,
+      estimatedInputLimit: input === undefined });
   }
   if (!models.length) throw new AppError('No visible subscription models are available for this account.', 'permission');
   return models;

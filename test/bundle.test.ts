@@ -33,7 +33,7 @@ test('shipping CJS bundle activates with desktop vscode-userdata storage and reg
   } as unknown as vscode.ExtensionContext;
   try {
     module.exports.activate(context);
-    const signIn = api.registeredCommands.get('chatgptSub.signIn'); assert.ok(signIn); await signIn();
+    const signIn = api.registeredCommands.get('chatgptSub.signIn'); assert.ok(signIn); await signIn(); // Mock progress cancels before authentication.
     const provider = api.registeredProviders.get('chatgpt-subscription-preview') as ChatGPTProvider;
     assert.ok(provider);
     const models = await provider.provideLanguageModelChatInformation({ silent: true }, {

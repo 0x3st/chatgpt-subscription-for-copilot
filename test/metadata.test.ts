@@ -13,10 +13,10 @@ async function manifest(): Promise<Manifest> { return JSON.parse(await readFile(
 
 test('store identity and source/support URLs match the user-approved publisher and repository', async () => {
   const item = await manifest();
-  assert.equal(`${item.publisher}.${item.name}`, 'lab530.chatgpt-for-copilot');
-  assert.deepEqual(item.repository, { type: 'git', url: 'https://github.com/0x3st/chatgpt-for-copilot.git' });
-  assert.equal(item.homepage, 'https://github.com/0x3st/chatgpt-for-copilot#readme');
-  assert.equal(item.bugs.url, 'https://github.com/0x3st/chatgpt-for-copilot/issues');
+  assert.equal(`${item.publisher}.${item.name}`, 'lab530.chatgpt-subscription-for-copilot');
+  assert.deepEqual(item.repository, { type: 'git', url: 'https://github.com/0x3st/chatgpt-subscription-for-copilot.git' });
+  assert.equal(item.homepage, 'https://github.com/0x3st/chatgpt-subscription-for-copilot#readme');
+  assert.equal(item.bugs.url, 'https://github.com/0x3st/chatgpt-subscription-for-copilot/issues');
 });
 test('the chosen conversation icon is a packaged 256px PNG, not the Lab 530 crest', async () => {
   const item = await manifest(); assert.equal(item.icon, 'assets/brand/icon.png');

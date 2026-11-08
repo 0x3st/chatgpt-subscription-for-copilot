@@ -8,7 +8,7 @@ import { activate } from '../src/extension';
 import { localStorageDirectory } from '../src/vscodeAdapter';
 import { parseVault } from '../src/auth/store';
 import type { ChatGPTProvider } from '../src/provider';
-import { registeredCommands, registeredProviders, browserOpens } from './vscode.mock';
+import { registeredCommands, registeredProviders, browserOpens, configuration } from './vscode.mock';
 
 for (const scheme of ['file', 'vscode-userdata']) test(`desktop activation with ${scheme}: registers callable sign-in command without login or network`, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'chatgpt-sub-activation-'));
@@ -24,20 +24,25 @@ for (const scheme of ['file', 'vscode-userdata']) test(`desktop activation with 
   try {
     activate(context);
     const provider = registeredProviders.get('chatgpt-subscription-preview') as ChatGPTProvider;
-    assert.ok(provider); assert.equal(registeredCommands.size, 6);
+    assert.ok(provider); assert.equal(registeredCommands.size, 7);
     const manifest = JSON.parse(await readFile('package.json', 'utf8')) as {
       publisher: string; name: string; contributes: { commands: { command: string }[]; languageModelChatProviders: { managementCommand: string }[] };
     };
-    assert.equal(`${manifest.publisher}.${manifest.name}`, 'lab530.chatgpt-for-copilot');
+    assert.equal(`${manifest.publisher}.${manifest.name}`, 'lab530.chatgpt-subscription-for-copilot');
     assert.deepEqual([...registeredCommands.keys()].sort(), manifest.contributes.commands.map(item => item.command).sort());
     for (const contribution of manifest.contributes.languageModelChatProviders) assert.ok(registeredCommands.has(contribution.managementCommand));
+    let refreshes = 0; const refresh = provider.refresh.bind(provider);
+    provider.refresh = () => { refreshes++; refresh(); };
+    await vscode.workspace.getConfiguration('chatgptSub').update('modelOverrides', {}, vscode.ConfigurationTarget.Global);
+    assert.ok(refreshes > 0, 'User configuration changes must refresh the model information');
     const signIn = registeredCommands.get('chatgptSub.signIn'); assert.ok(signIn);
-    await signIn(); // Preview confirmation is declined by the mock; no real browser/authentication.
+    await signIn(); // The progress mock cancels before authentication; no real browser or network.
     const token: vscode.CancellationToken = { isCancellationRequested: false, onCancellationRequested: () => ({ dispose() {} }) };
     assert.deepEqual(await provider.provideLanguageModelChatInformation({ silent: true }, token), []);
     assert.equal(parseVault(raw).registrations.length, 0); assert.equal(requests, 0); assert.equal(browserOpens, 0);
   } finally {
     for (const sub of subscriptions) sub.dispose(); globalThis.fetch = originalFetch;
+    delete configuration.modelOverrides;
     await assert.rejects(access(join(directory, 'session.lock')));
     await rm(directory, { recursive: true, force: true });
   }

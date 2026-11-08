@@ -21,6 +21,14 @@ test('settings ignore workspace overrides and clamp the total timeout', () => {
   assert.deepEqual(settings(), { effort: 'high', summary: false, timeoutMs: 1800000 });
   for (const key of Object.keys(configuration)) delete configuration[key];
 });
+test('invalid explicit global effort never silently becomes the server default', () => {
+  try {
+    for (const effort of ['off', '', null, false, {}]) {
+      configuration.reasoningEffort = { globalValue: effort, defaultValue: 'default' };
+      assert.throws(() => settings(), /Invalid reasoningEffort/);
+    }
+  } finally { for (const key of Object.keys(configuration)) delete configuration[key]; }
+});
 test('silent discovery never opens the browser or makes network requests when signed out', async () => {
   let logins = 0; let requests = 0; const accounts = new AccountManager(new MemoryStore(), oauth());
   const provider = new ChatGPTProvider(accounts, new HttpClient(fake(() => { requests++; throw new Error('unexpected'); })), async () => { logins++; return false; }, log);

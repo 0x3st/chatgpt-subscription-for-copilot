@@ -8,18 +8,20 @@ import { ReplayCache } from './chat/replay';
 import { AppError, checkAbort, deadline, safeError } from './core';
 import type { HttpClient } from './http';
 import { cancellation, normalizeMessage } from './vscodeAdapter';
+import { contextWindowError, inputBudget, modelOverride, reasoningEffort, saveModelOverride, userSetting } from './modelSettings';
+import { pickerEffort, pickerInputBudget, pickerSchema, type NativeModelInformation, type NativeResponseOptions } from './modelPicker';
 
 export const VENDOR = 'chatgpt-subscription-preview';
 export function settings(): { effort: Effort | undefined; summary: boolean; timeoutMs: number } {
-  const config = vscode.workspace.getConfiguration('chatgptSub');
-  // Explicitly read user/default values as defense in depth, even though all settings are machine-scoped.
-  const get = (key: string) => { const value = config.inspect<unknown>(key); return value?.globalValue ?? value?.defaultValue; };
+  // Explicitly read user/default values; workspace overrides cannot affect requests.
+  const get = userSetting;
   const effort = get('reasoningEffort'); const timeout = get('requestTimeoutSeconds');
+  if (effort !== undefined && effort !== 'default' && !EFFORTS.includes(effort as Effort)) throw new AppError('Invalid reasoningEffort setting. Choose default or a supported effort.');
   return { effort: EFFORTS.includes(effort as Effort) ? effort as Effort : undefined,
     summary: get('showReasoningSummary') === true,
     timeoutMs: typeof timeout === 'number' && Number.isFinite(timeout) ? Math.min(1800, Math.max(10, timeout)) * 1000 : 600000 };
 }
-export class ChatGPTProvider implements vscode.LanguageModelChatProvider, vscode.Disposable {
+export class ChatGPTProvider implements vscode.LanguageModelChatProvider<NativeModelInformation>, vscode.Disposable {
   private readonly changes = new vscode.EventEmitter<void>();
   readonly onDidChangeLanguageModelChatInformation = this.changes.event;
   private catalog: { epoch: string; clientId: string; at: number; models: ChatModel[] } | undefined;
@@ -34,7 +36,7 @@ export class ChatGPTProvider implements vscode.LanguageModelChatProvider, vscode
     const models = await fetchModels(this.http, credentials.access, signal); checkAbort(signal);
     this.catalog = { epoch: credentials.epoch, clientId: credentials.clientId, models, at: Date.now() }; return models;
   }
-  async provideLanguageModelChatInformation(options: vscode.PrepareLanguageModelChatModelOptions, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> {
+  async provideLanguageModelChatInformation(options: vscode.PrepareLanguageModelChatModelOptions, token: vscode.CancellationToken): Promise<NativeModelInformation[]> {
     const cancel = cancellation(token);
     try {
       const snapshot = await this.accounts.snapshot(cancel.signal);
@@ -48,16 +50,63 @@ export class ChatGPTProvider implements vscode.LanguageModelChatProvider, vscode
         const info = await this.accounts.snapshot(operation.signal); checkAbort(operation.signal);
         if (info.epoch !== credentials.epoch) throw new AppError('The account has changed. Select a model again.', 'cancelled');
         const label = info.accounts.find(account => account.clientId === credentials.clientId)?.label ?? 'ChatGPT';
-        return models.map(model => ({ id: editorId(model.id), name: model.name, family: 'chatgpt-subscription', version: model.id,
-          maxInputTokens: model.inputTokens, maxOutputTokens: model.outputTokens, detail: `${label} · Preview`,
-          tooltip: `${model.name} · ChatGPT subscription (Preview)${model.estimatedLimits ? ' · token limits are conservative estimates' : ''}`,
-          capabilities: { imageInput: model.images, toolCalling: model.tools } }));
+        return models.map(model => {
+          const override = modelOverride(model.id); const budget = inputBudget(model, override);
+          return { id: editorId(model.id), name: model.name, family: 'chatgpt-subscription', version: model.id,
+            maxInputTokens: budget, maxOutputTokens: model.outputTokens,
+            configurationSchema: pickerSchema(model, settings().effort),
+            detail: `${label} · Preview`,
+            tooltip: `${model.name} · ChatGPT subscription (Preview)${model.estimatedLimits ? ' · catalog token limits are partly estimated' : ''}${override.contextWindow !== undefined ? ' · user input budget; server capacity is unchanged' : ''}`,
+            capabilities: { imageInput: model.images, toolCalling: model.tools } };
+        });
       } finally { operation.dispose(); }
     } catch (error) { throw this.translate(error); }
     finally { cancel.dispose(); }
   }
+  async configureModel(signal: AbortSignal): Promise<void> {
+    const accountSignal = this.accounts.signal;
+    const active = AbortSignal.any([signal, accountSignal]);
+    const operation = deadline(60000, [active]);
+    let models: ChatModel[];
+    try {
+      const credentials = await this.accounts.credentials(operation.signal);
+      models = await this.models(credentials, operation.signal);
+      checkAbort(operation.signal);
+    } finally { operation.dispose(); }
+    const selected = await vscode.window.showQuickPick(models.map(model => ({ label: model.name, description: model.id, model })), {
+      title: 'Advanced ChatGPT Model Defaults', placeHolder: 'Set saved defaults or override missing catalog metadata; chat controls are in the Copilot model menu'
+    });
+    checkAbort(active); if (!selected) return;
+    const model = selected.model;
+    const action = await vscode.window.showQuickPick(['Thinking effort', 'Context window', 'Reset model settings'], { title: model.name });
+    checkAbort(active); if (!action) return;
+    const previous = modelOverride(model.id);
+    if (action === 'Thinking effort') {
+      const choices: (vscode.QuickPickItem & { value: Effort | 'default' | undefined })[] = [
+        { label: 'Use global setting', value: undefined }, { label: 'Model default', description: 'Let the server choose', value: 'default' },
+        ...(model.efforts.length ? model.efforts : EFFORTS).map(value => ({ label: value === 'none' ? 'Off (none)' : value, value }))
+      ];
+      const effort = await vscode.window.showQuickPick(choices, { title: `${model.name}: Thinking effort`,
+        placeHolder: model.efforts.length ? 'Only catalog-supported efforts are shown' : 'Capabilities were not reported; the service may reject an explicit effort' });
+      checkAbort(active); if (!effort) return;
+      const { reasoningEffort: _old, ...rest } = previous;
+      await saveModelOverride(model.id, { ...rest, ...(effort.value !== undefined ? { reasoningEffort: effort.value } : {}) });
+    } else if (action === 'Context window') {
+      const value = await vscode.window.showInputBox({ title: `${model.name}: Input context window`, value: String(inputBudget(model, previous)),
+        prompt: model.estimatedInputLimit === true
+          ? 'Override missing catalog metadata for Copilot; this does not increase server capacity. Leave blank for the conservative default.'
+          : `Input token budget for Copilot, at most the catalog limit of ${model.inputTokens} tokens. Leave blank for the model default.`,
+        validateInput: value => contextWindowError(model, value) });
+      checkAbort(active); if (value === undefined) return;
+      const invalid = contextWindowError(model, value); if (invalid) throw new AppError(invalid);
+      const { contextWindow: _old, ...rest } = previous;
+      await saveModelOverride(model.id, { ...rest, ...(value.trim() ? { contextWindow: Number(value.trim()) } : {}) });
+    } else await saveModelOverride(model.id, undefined);
+    this.refresh();
+    void vscode.window.showInformationMessage('Model settings saved for future requests. Start a new chat if Copilot retains an old context budget.');
+  }
   async provideLanguageModelChatResponse(modelInfo: vscode.LanguageModelChatInformation, messages: readonly vscode.LanguageModelChatRequestMessage[],
-    options: vscode.ProvideLanguageModelChatResponseOptions, progress: vscode.Progress<vscode.LanguageModelResponsePart>, token: vscode.CancellationToken): Promise<void> {
+    options: NativeResponseOptions, progress: vscode.Progress<vscode.LanguageModelResponsePart>, token: vscode.CancellationToken): Promise<void> {
     const config = settings(); const cancel = cancellation(token);
     const operation = deadline(config.timeoutMs, [cancel.signal, this.accounts.signal]);
     try {
@@ -65,14 +114,18 @@ export class ChatGPTProvider implements vscode.LanguageModelChatProvider, vscode
       const models = await this.models(credentials, operation.signal);
       const model = models.find(item => editorId(item.id) === modelInfo.id);
       if (!model) throw new AppError('The selected model is not available for the current account. Refresh the model list.', 'permission');
-      const option = options.modelOptions?.reasoningEffort;
-      if (option !== undefined && option !== 'default' && !EFFORTS.includes(option as Effort)) throw new AppError('Invalid reasoning effort.');
-      const effort = option === 'default' ? undefined : option as Effort | undefined ?? config.effort;
+      const effort = reasoningEffort(model, pickerEffort(options), config.effort);
+      const budget = pickerInputBudget(model, options);
+      const normalized = messages.map(normalizeMessage);
       const replayScope = JSON.stringify([credentials.clientId, credentials.epoch, model.id]);
-      const prepared = this.replay.apply(replayScope, prepareRequest(model, messages.map(normalizeMessage), (options.tools ?? []).map(tool => ({
+      const prepared = this.replay.apply(replayScope, prepareRequest(model, normalized, (options.tools ?? []).map(tool => ({
         name: tool.name, description: tool.description, schema: tool.inputSchema ?? { type: 'object', properties: {} }
       })), options.toolMode === vscode.LanguageModelChatToolMode.Required, effort, config.summary,
       `${this.session}-${createHash('sha256').update(credentials.clientId + credentials.epoch).digest('hex').slice(0, 16)}`));
+      if (budget !== undefined && estimateTokens(normalized) + estimateTokens(String(prepared.body.instructions)) +
+        estimateTokens(JSON.stringify(prepared.body.tools ?? [])) + 64 > budget) {
+        throw new AppError('The conversation exceeds the selected input context budget. Start a new chat or select a larger budget. No history was dropped.');
+      }
       let summary = false; let answer = false;
       const result = await complete(this.http, credentials.access, prepared, operation.signal, (type, value) => {
         checkAbort(operation.signal);
