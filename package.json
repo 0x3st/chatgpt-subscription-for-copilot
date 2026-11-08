@@ -1,0 +1,56 @@
+{
+  "name": "chatgpt-for-copilot",
+  "displayName": "ChatGPT Subscription for Copilot (Preview)",
+  "description": "Use your ChatGPT subscription in Copilot Chat through official Sign in with ChatGPT (Preview).",
+  "version": "0.1.0",
+  "publisher": "lab530",
+  "private": true,
+  "license": "MIT",
+  "icon": "assets/brand/icon.png",
+  "repository": { "type": "git", "url": "https://github.com/0x3st/chatgpt-for-copilot.git" },
+  "homepage": "https://github.com/0x3st/chatgpt-for-copilot#readme",
+  "bugs": { "url": "https://github.com/0x3st/chatgpt-for-copilot/issues" },
+  "engines": { "vscode": "^1.116.0", "node": ">=22" },
+  "categories": ["AI", "Chat"],
+  "keywords": ["chatgpt", "copilot", "subscription", "openai", "siwc"],
+  "extensionKind": ["ui"],
+  "capabilities": { "untrustedWorkspaces": { "supported": false }, "virtualWorkspaces": false },
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.cjs",
+  "contributes": {
+    "languageModelChatProviders": [{ "vendor": "chatgpt-subscription-preview", "displayName": "ChatGPT Subscription (Preview)", "managementCommand": "chatgptSub.manage" }],
+    "commands": [
+      { "command": "chatgptSub.manage", "title": "Manage Accounts", "category": "ChatGPT Subscription" },
+      { "command": "chatgptSub.signIn", "title": "Continue with ChatGPT", "category": "ChatGPT Subscription" },
+      { "command": "chatgptSub.signOut", "title": "Sign Out of Active Account", "category": "ChatGPT Subscription" },
+      { "command": "chatgptSub.refreshModels", "title": "Refresh Models", "category": "ChatGPT Subscription" },
+      { "command": "chatgptSub.usage", "title": "Open ChatGPT Usage", "category": "ChatGPT Subscription" },
+      { "command": "chatgptSub.logs", "title": "Show Logs", "category": "ChatGPT Subscription" }
+    ],
+    "configuration": {
+      "title": "ChatGPT Subscription (Preview)",
+      "properties": {
+        "chatgptSub.reasoningEffort": { "type": "string", "scope": "machine", "default": "default", "enum": ["default", "none", "minimal", "low", "medium", "high", "xhigh", "max"], "description": "Reasoning effort. Default lets the server choose; unsupported values are rejected, not silently substituted." },
+        "chatgptSub.showReasoningSummary": { "type": "boolean", "scope": "machine", "default": false, "description": "Show the model's reasoning summary as ordinary text; no proposed VS Code API is used." },
+        "chatgptSub.requestTimeoutSeconds": { "type": "number", "scope": "machine", "default": 600, "minimum": 10, "maximum": 1800, "description": "Total chat deadline including credential refresh and streaming." }
+      }
+    }
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "compile": "npm run check && node scripts/build.mjs",
+    "test": "node scripts/test.mjs",
+    "vscode:prepublish": "npm run compile",
+    "package": "node scripts/package.mjs"
+  },
+  "dependencies": { "jose": "6.2.15", "proper-lockfile": "4.1.2" },
+  "overrides": { "@vscode/vsce": { "minimatch": "11.0.1" } },
+  "devDependencies": {
+    "@types/node": "22.19.0",
+    "@types/proper-lockfile": "4.1.4",
+    "@types/vscode": "1.116.0",
+    "@vscode/vsce": "4.1.0",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  }
+}

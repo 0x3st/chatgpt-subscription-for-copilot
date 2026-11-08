@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">ChatGPT for Copilot — original extension icon</title>
+  <desc id="desc">Two overlapping conversation bubbles and a mint connection spark on a rounded midnight-blue tile. An original, unofficial mark; no OpenAI or GitHub logo is used.</desc>
+  <defs>
+    <linearGradient id="tile" x1="62" y1="24" x2="460" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#152D49"/>
+      <stop offset="0.58" stop-color="#101D33"/>
+      <stop offset="1" stop-color="#0A1426"/>
+    </linearGradient>
+    <linearGradient id="mint" x1="234" y1="230" x2="405" y2="412" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7AF0D4"/>
+      <stop offset="1" stop-color="#2EC7B0"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="106" y1="133" x2="328" y2="337" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#ECF5FA"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#tile)"/>
+  <rect x="1" y="1" width="510" height="510" rx="111" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="2"/>
+  <!-- The second voice: connection to the editor. -->
+  <path d="M265 232H343C378.3 232 407 260.7 407 296V322C407 340.5 399.2 357.3 386.8 369L401 409L349 386H265C229.7 386 201 357.3 201 322V296C201 260.7 229.7 232 265 232Z" fill="url(#mint)"/>
+  <!-- Main conversation bubble, kept solid for recognition at small sizes. -->
+  <path d="M151 132H287C322.3 132 351 160.7 351 196V264C351 299.3 322.3 328 287 328H228L160 377V328H151C115.7 328 87 299.3 87 264V196C87 160.7 115.7 132 151 132Z" fill="#07111F" fill-opacity="0.17" transform="translate(0 8)"/>
+  <path d="M151 132H287C322.3 132 351 160.7 351 196V264C351 299.3 322.3 328 287 328H228L160 377V328H151C115.7 328 87 299.3 87 264V196C87 160.7 115.7 132 151 132Z" fill="url(#paper)"/>
+  <rect x="143" y="203" width="96" height="18" rx="9" fill="#19344B"/>
+  <rect x="143" y="245" width="144" height="18" rx="9" fill="#19344B"/>
+  <!-- Four-point connection spark; a deliberate gap keeps the two forms distinct. -->
+  <path d="M360 84C367 126 382 141 424 148C382 155 367 170 360 212C353 170 338 155 296 148C338 141 353 126 360 84Z" fill="#7AF0D4" stroke="#101E34" stroke-width="12" stroke-linejoin="round"/>
+</svg>
