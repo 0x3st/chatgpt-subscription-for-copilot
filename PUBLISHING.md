@@ -7,7 +7,12 @@ This document describes the release workflow. Its presence, a source push, or a 
 - Initial version: **`0.1.0`**.
 - Source: <https://github.com/0x3st/chatgpt-subscription-for-copilot>.
 - Workflow: **`.github/workflows/publish2marketplace.yml`**.
-- Publication status: **not yet published or authenticated through this workflow**.
+- Publication status: **`0.1.0` published and independently verified in the public Marketplace through official OIDC on 2026-11-08**.
+- Listing: <https://marketplace.visualstudio.com/items?itemName=lab530.chatgpt-subscription-for-copilot>.
+- Release source: `15546b9aacfd20c78754343bcb1b2d27f354bb2f` (GitHub-verified SSH signature; noreply author and committer).
+- Successful release run: <https://github.com/0x3st/chatgpt-subscription-for-copilot/actions/runs/42448373673>.
+- Published workflow artifact SHA-256: `8a1467f44f31dca39e76afb1197cbe64d55d3a46da964a61d3873a0435fea9bf`.
+- The preceding OIDC-only preflight succeeded with the publication step skipped. Both runs passed 137 tests, dependency audit, and exact archive/runtime checks. The `marketplace` environment requires owner review and permits only `main`; the release artifact was inspected before approval. This record does not authorize another release or version bump.
 
 ## Configure Trusted Publishing once
 

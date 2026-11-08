@@ -4,7 +4,7 @@ Use eligible **ChatGPT subscription models in GitHub Copilot Chat** through Open
 
 > **Unofficial extension by Lab 530. Not affiliated with OpenAI, GitHub, or Microsoft.** Subscription sharing is a Preview feature subject to account, workspace, region, model, and application eligibility. A ChatGPT subscription alone does not guarantee access. This extension does not bypass Copilot permissions or provide unlimited API usage.
 >
-> **Development status:** local protocol and mocked integration tests pass. The user has confirmed successful live text inference after the SSE compatibility fix; this was not independently replayed by the agent. Full Agent-tool and cross-platform acceptance remains pending. Source availability and local packaging are not a Marketplace release.
+> **Release status:** version **0.1.0** is [available on the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=lab530.chatgpt-subscription-for-copilot), published through official OIDC after 137 passing tests and artifact verification. The user has confirmed successful live text inference after the SSE compatibility fix; this was not independently replayed by the agent. Full Agent-tool and cross-platform acceptance remains pending.
 
 ## Requirements
 
@@ -17,7 +17,7 @@ The extension's default interface, account dialogs, browser callback pages, diag
 
 ## Install and connect
 
-1. Open **Extensions → Install from VSIX…** and select the locally built `lab530.chatgpt-subscription-for-copilot-0.1.0.vsix`.
+1. Install [ChatGPT Subscription for Copilot from the Marketplace](https://marketplace.visualstudio.com/items?itemName=lab530.chatgpt-subscription-for-copilot), or use **Extensions → Install from VSIX…** with `lab530.chatgpt-subscription-for-copilot-0.1.0.vsix`.
 2. Run **ChatGPT Subscription: Continue with ChatGPT**.
 3. Complete authorization on the official OpenAI page in your browser. After the first successful sign-in with subscription access, a dismissible notice confirms ChatGPT plan usage and shared limits. Earlier notice acknowledgments are retained; failed or declined authorization does not mark it as shown.
 4. In Copilot Chat, open the model picker → **Manage Models…** → **ChatGPT Subscription (Preview)** and enable an available model.
@@ -166,7 +166,7 @@ npm run package
 
 Packaging creates `artifacts/lab530.chatgpt-subscription-for-copilot-0.1.0.vsix` locally. It does **not** upload, publish, tag, or deploy anything. The `vscode:prepublish` hook only compiles the bundle before local packaging.
 
-The `lab530` publisher is configured; Marketplace authentication has not been exercised. The manual [publishing workflow](.github/workflows/publish2marketplace.yml) verifies the exact reviewed main commit, version, tests, archive contents, and package hash before using official OIDC Trusted Publishing. It never publishes on a push, PR, or tag. See [PUBLISHING.md](PUBLISHING.md) for the required publisher policy and approval steps. The project-level minimatch override pins vsce's dependency to 11.0.1 to address the reported globparts-amplification advisory; packaging has been tested with this override.
+Version **0.1.0** was published as `lab530.chatgpt-subscription-for-copilot` through official OIDC Trusted Publishing and independently verified in the public Marketplace. The exact release commit, workflow run, and artifact hash are recorded in [PUBLISHING.md](PUBLISHING.md). The manual [publishing workflow](.github/workflows/publish2marketplace.yml) verifies the exact reviewed main commit, version, tests, archive contents, and package hash before using official OIDC Trusted Publishing. It never publishes on a push, PR, or tag. See [PUBLISHING.md](PUBLISHING.md) for the required publisher policy and approval steps. The project-level minimatch override pins vsce's dependency to 11.0.1 to address the reported globparts-amplification advisory; packaging has been tested with this override.
 
 The VSIX allowlist includes only the runtime bundle, manifest, English README/privacy notice, selected PNG icon, and license notices. It excludes tests, audit evidence, reference repositories, other brand assets, credentials, and node_modules. Runtime dependencies are bundled.
 
