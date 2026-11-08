@@ -36,7 +36,7 @@ No PAT repository secret is needed. Do not paste tokens into chat, source, print
 2. Obtain the owner's approval for the current source upload and exact public release. Initial source-upload approval is not blanket permission for later changes or releases.
 3. Commit using the correct GitHub noreply author **and committer** identities and a valid configured signature. Verify the uploaded commit and GitHub's signature verification. Never silently rewrite published history.
 4. Confirm the full **40-character SHA on `main`** and the exact `package.json` version. The workflow neither bumps versions nor creates tags or GitHub releases.
-5. Verify that the Trusted Publishing policy and repository environment protections are configured. Do not trigger a speculative release to test credentials.
+5. Verify that the Trusted Publishing policy and repository environment protections are configured. Use the same workflow with `auth_only=true` first: its only publishing command is explicitly skipped, while the locked official vsce OIDC helper verifies trust without exposing or persisting credentials. Do not trigger a speculative actual release to test credentials. A failed preflight blocks publication; do not use a PAT fallback.
 6. Open **Actions → Publish to Visual Studio Marketplace → Run workflow**, select `main`, enter the exact version and reviewed commit, and explicitly check the public-publication confirmation.
 7. If environment approval is configured, review the verification job and its package hash before approving the publishing job.
 8. After success, independently verify the Marketplace extension ID/version/listing and retain the workflow run and VSIX hash. Update publication status only after verification.
@@ -47,8 +47,11 @@ An authorized release operator may instead dispatch the same workflow locally, a
 gh workflow run publish2marketplace.yml --ref main \
   -f version=0.1.0 \
   -f commit=REVIEWED_FULL_40_CHARACTER_MAIN_COMMIT_SHA \
-  -f confirm_publish=true
+  -f confirm_publish=true \
+  -f auth_only=false
 ```
+
+For an authorization-only preflight, use the same reviewed commit and change the final input to `-f auth_only=true`. It cannot upload an extension. Once trust is verified, an explicitly approved release can use `auth_only=false`.
 
 The placeholder is intentionally invalid until replaced with the reviewed SHA. No workflow is triggered by a push, pull request, tag, or ordinary local packaging.
 

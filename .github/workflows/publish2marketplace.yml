@@ -1,4 +1,5 @@
 name: Publish to Visual Studio Marketplace
+run-name: "${{ inputs.auth_only && 'OIDC preflight' || 'Publish' }} ${{ inputs.version }} @ ${{ inputs.commit }}"
 
 on:
   workflow_dispatch:
@@ -12,8 +13,13 @@ on:
         description: Full 40-character main commit SHA reviewed for this release
         required: true
         type: string
+      auth_only:
+        description: Verify OIDC trust only; never upload the extension in this run
+        required: true
+        default: false
+        type: boolean
       confirm_publish:
-        description: Publish this exact version and commit publicly to Marketplace
+        description: Approve this version and commit (auth_only still prevents publication)
         required: true
         default: false
         type: boolean
@@ -125,7 +131,7 @@ jobs:
           retention-days: 7
 
   publish:
-    name: Publish the verified VSIX through Trusted Publishing
+    name: ${{ inputs.auth_only && 'Check Marketplace OIDC only (no publication)' || 'Publish the verified VSIX through Trusted Publishing' }}
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -151,6 +157,8 @@ jobs:
           cache: npm
       - name: Install the locked official publisher without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit
+      - name: Verify Marketplace trust without publishing or exposing credentials
+        run: node scripts/marketplace-auth.cjs
       - name: Download this run's verified package
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -170,4 +178,5 @@ jobs:
       # vsce 4.1.0 uses api-version=7.2-preview.1 for OIDC exchange and Gallery publishing.
       # No PAT, API-key billing fallback, version bump, Git tag, or GitHub release.
       - name: Publish to Marketplace using official OIDC
+        if: ${{ !inputs.auth_only }}
         run: npx --no-install vsce publish --packagePath "$PACKAGE_PATH" --oidc

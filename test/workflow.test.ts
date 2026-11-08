@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { parseDocument } from 'yaml';
 
-interface Step { name: string; id?: string; uses?: string; run?: string; with?: Record<string, unknown> }
+interface Step { name: string; id?: string; uses?: string; run?: string; if?: string; with?: Record<string, unknown> }
 interface Job { needs?: string; 'timeout-minutes': number; permissions: Record<string, string>; environment?: { name: string }; steps: Step[] }
 interface Workflow { on: Record<string, unknown>; permissions: Record<string, string>; concurrency: { 'cancel-in-progress': boolean }; jobs: Record<string, Job> }
 const text = readFileSync('.github/workflows/publish2marketplace.yml', 'utf8');
@@ -51,6 +51,11 @@ test('publishing is manual, bounded, commit-pinned and least-privileged', () => 
   const publishSteps = workflow.jobs.publish!.steps;
   assert.match(publishSteps.at(-1)!.run!, /^npx --no-install vsce publish --packagePath "\$PACKAGE_PATH" --oidc$/);
   assert.ok(publishSteps.at(-2)!.run?.includes('createHash'));
+  assert.equal(publishSteps.at(-1)!.if, '${{ !inputs.auth_only }}');
+  assert.ok(publishSteps.some(step => step.run === 'node scripts/marketplace-auth.cjs'));
+  const dispatch = workflow.on.workflow_dispatch as { inputs: Record<string, { type: string; default?: unknown }> };
+  assert.equal(dispatch.inputs.auth_only!.type, 'boolean');
+  assert.equal(dispatch.inputs.auth_only!.default, false);
 });
 
 test('the actual release guard rejects unapproved, stale, foreign, malformed and wrong-version dispatches', async () => {
