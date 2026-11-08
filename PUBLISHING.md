@@ -5,15 +5,16 @@ This document describes the release workflow. Its presence, a source push, or a 
 - Publisher: **`lab530`**.
 - Extension: **`lab530.chatgpt-subscription-for-copilot`**.
 - Initial version: **`0.1.0`**.
-- Current patch candidate: **`0.1.1`**, authorized by the owner for source upload and Marketplace publication after tests. Publication is not established until the exact workflow artifact and public listing are independently verified.
+- Current released patch: **`0.1.1`**, published following the owner's explicit authorization for source upload and Marketplace publication after verification.
 - Source: <https://github.com/0x3st/chatgpt-subscription-for-copilot>.
 - Workflow: **`.github/workflows/publish2marketplace.yml`**.
-- Publication status: **`0.1.0` published and independently verified in the public Marketplace through official OIDC on 2026-11-08**.
+- Publication status: **`0.1.1` published through official OIDC on 2026-11-08 and independently verified in the public Marketplace version metadata and version-specific VSIX download**.
 - Listing: <https://marketplace.visualstudio.com/items?itemName=lab530.chatgpt-subscription-for-copilot>.
-- Release source: `15546b9aacfd20c78754343bcb1b2d27f354bb2f` (GitHub-verified SSH signature; noreply author and committer).
-- Successful release run: <https://github.com/0x3st/chatgpt-subscription-for-copilot/actions/runs/42448373673>.
-- Published workflow artifact SHA-256: `8a1467f44f31dca39e76afb1197cbe64d55d3a46da964a61d3873a0435fea9bf`.
-- The preceding OIDC-only preflight succeeded with the publication step skipped. Both runs passed 137 tests, dependency audit, and exact archive/runtime checks. The `marketplace` environment requires owner review and permits only `main`; the release artifact was inspected before approval. This record does not authorize another release or version bump.
+- Release source: `dfadd3076e48fd41361ee814effb6f9588431634` (GitHub-verified SSH signature; noreply author and committer).
+- Successful release run: <https://github.com/0x3st/chatgpt-subscription-for-copilot/actions/runs/42480184302>.
+- Published workflow artifact SHA-256: `e1e46dbbe3748778851be030ffcd57875052e1f161331e83fa6bc1d55ed1c2f8`. The independently downloaded public VSIX and public version metadata have the same hash.
+- OIDC-only preflight: <https://github.com/0x3st/chatgpt-subscription-for-copilot/actions/runs/42479899625>; its publication step was skipped. Both runs passed 168 tests, dependency audit, and exact archive/runtime checks. The `marketplace` environment requires owner review and permits only `main`; each run's artifact was inspected before approval. This completed authorization does not authorize another release or version bump.
+- Initial `0.1.0` historical record: source `15546b9aacfd20c78754343bcb1b2d27f354bb2f`, run `42448373673`, artifact SHA-256 `8a1467f44f31dca39e76afb1197cbe64d55d3a46da964a61d3873a0435fea9bf`; do not republish either released version.
 
 ## Configure Trusted Publishing once
 
