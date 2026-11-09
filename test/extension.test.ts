@@ -8,7 +8,7 @@ import { activate } from '../src/extension';
 import { localStorageDirectory } from '../src/vscodeAdapter';
 import { parseVault } from '../src/auth/store';
 import type { ChatGPTProvider } from '../src/provider';
-import { registeredCommands, registeredProviders, browserOpens, configuration } from './vscode.mock';
+import { registeredCommands, registeredProviders, registeredTools, notebookStatusProviders, browserOpens, configuration } from './vscode.mock';
 
 for (const scheme of ['file', 'vscode-userdata']) test(`desktop activation with ${scheme}: registers callable sign-in command without login or network`, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'chatgpt-sub-activation-'));
@@ -24,7 +24,8 @@ for (const scheme of ['file', 'vscode-userdata']) test(`desktop activation with 
   try {
     activate(context);
     const provider = registeredProviders.get('chatgpt-subscription-preview') as ChatGPTProvider;
-    assert.ok(provider); assert.equal(registeredCommands.size, 7);
+    assert.ok(provider); assert.equal(registeredCommands.size, 8);
+    assert.equal(registeredTools.size, 3); assert.equal(notebookStatusProviders.size, 1);
     const manifest = JSON.parse(await readFile('package.json', 'utf8')) as {
       publisher: string; name: string; contributes: { commands: { command: string }[]; languageModelChatProviders: { managementCommand: string }[] };
     };
@@ -47,6 +48,7 @@ for (const scheme of ['file', 'vscode-userdata']) test(`desktop activation with 
     await rm(directory, { recursive: true, force: true });
   }
   assert.equal(registeredProviders.size, 0); assert.equal(registeredCommands.size, 0);
+  assert.equal(registeredTools.size, 0); assert.equal(notebookStatusProviders.size, 0);
 });
 
 test('storage guard still rejects web, remote and relative storage paths', () => {

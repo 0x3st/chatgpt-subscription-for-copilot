@@ -4,7 +4,7 @@ Use eligible **ChatGPT subscription models in GitHub Copilot Chat** through Open
 
 > **Unofficial extension by Lab 530. Not affiliated with OpenAI, GitHub, or Microsoft.** Subscription sharing is a Preview feature subject to account, workspace, region, model, and application eligibility. A ChatGPT subscription alone does not guarantee access. This extension does not bypass Copilot permissions or provide unlimited API usage.
 >
-> **Release status:** version **0.1.0** is [available on the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=lab530.chatgpt-subscription-for-copilot), published through official OIDC after 137 passing tests and artifact verification. The user has confirmed successful live text inference after the SSE compatibility fix; this was not independently replayed by the agent. Full Agent-tool and cross-platform acceptance remains pending.
+> **Marketplace:** [ChatGPT Subscription for Copilot](https://marketplace.visualstudio.com/items?itemName=lab530.chatgpt-subscription-for-copilot). This source version is **0.2.0**, adding live Notebook cell tools. All **193 offline tests** pass, but visual updates, undo behavior, and tool selection in the actual Copilot/Notebook UI remain unverified. The user confirmed real text inference in an earlier version; the agent did not replay a real model request. Full Agent-tool and cross-platform acceptance remains pending.
 
 ## Requirements
 
@@ -17,7 +17,7 @@ The extension's default interface, account dialogs, browser callback pages, diag
 
 ## Install and connect
 
-1. Install [ChatGPT Subscription for Copilot from the Marketplace](https://marketplace.visualstudio.com/items?itemName=lab530.chatgpt-subscription-for-copilot), or use **Extensions → Install from VSIX…** with `lab530.chatgpt-subscription-for-copilot-0.1.1.vsix`.
+1. Install [ChatGPT Subscription for Copilot from the Marketplace](https://marketplace.visualstudio.com/items?itemName=lab530.chatgpt-subscription-for-copilot), or use **Extensions → Install from VSIX…** with `lab530.chatgpt-subscription-for-copilot-0.2.0.vsix`.
 2. Run **ChatGPT Subscription: Continue with ChatGPT**.
 3. Complete authorization on the official OpenAI page in your browser. After the first successful sign-in with subscription access, a dismissible notice confirms ChatGPT plan usage and shared limits. Earlier notice acknowledgments are retained; failed or declined authorization does not mark it as shown.
 4. In Copilot Chat, open the model picker → **Manage Models…** → **ChatGPT Subscription (Preview)** and enable an available model.
@@ -30,7 +30,7 @@ Silent model discovery never opens a browser. Authentication failures do not sil
 For an existing installation of **the same extension ID, `lab530.chatgpt-subscription-for-copilot`**, run this from the project directory:
 
 ```bash
-code --install-extension ./artifacts/lab530.chatgpt-subscription-for-copilot-0.1.1.vsix --force
+code --install-extension ./artifacts/lab530.chatgpt-subscription-for-copilot-0.2.0.vsix --force
 ```
 
 Then run **Developer: Reload Window**. You can also reinstall through **Install from VSIX…**. Updating the same extension identity does not require signing in again solely because of an SSE parsing fix.
@@ -55,6 +55,42 @@ Credentials are never automatically read or copied from the old extension, Pi, o
 - Multiple saved account/workspace registrations, PKCE, state, nonce, and ID-token signature/issuer/audience/expiry/subject validation.
 - Serialized credential updates and rotating-token refresh across windows. Switching accounts or signing out cancels stale operations.
 - Cancellation and finite total deadlines covering authentication, refresh, response headers, and streaming bodies.
+- New in 0.2.0: live Notebook cell tools that edit the open editor document, with per-cell snapshots and user-controlled AI locks.
+
+## Live Notebook editing (0.2.0)
+
+This build contributes three **stable VS Code Language Model Tools** to Copilot's local Agent tool picker. They require no MCP server, separate model, or additional ChatGPT sign-in just to use the tools. The selected model and Agent still need to support extension tools; external Claude/Codex/CLI/cloud harnesses are not assumed to expose them.
+
+1. Open a Jupyter `.ipynb` in VS Code's **Notebook editor**, in a trusted workspace. Unsaved notebooks are also supported.
+2. In Copilot Chat's local **Agent** mode, enable **List Live Notebook Cells**, **Read Live Notebook Cell**, and **Update Live Notebook Cell** in the tools picker.
+3. Ask Copilot to use `#liveNotebookList`, `#liveNotebookReadCell`, and `#liveNotebookUpdateCell` to read and update the desired cell **in the live editor**, not by rewriting the notebook file. Listing with no URI finds open notebooks; listing a returned URI supplies live cell IDs.
+4. Review Copilot's tool approvals. Once the update is applied, the cell's source changes directly in the open Notebook editor. You do not need to save, reload, or reopen it. Other cells' unsaved input is not targeted.
+
+For example: “Use the live Notebook tools to read the second cell and add input validation. Update only that cell in the editor; do not use the terminal or rewrite the `.ipynb` file.” Model and user messages do not have to be in English.
+
+Each cell has an **AI editable / AI locked** status-bar action. You can also select a cell and run **ChatGPT Subscription: Toggle AI Cell Lock**. A lock rejects this extension's update tool, not your typing, other extensions, terminal commands, or disk writes. There is no AI unlock tool. Locks are per open notebook/window, kept only in memory, and reset when the notebook closes or the extension reloads. Changing a lock invalidates existing read snapshots; an already submitted edit must finish before its lock can change.
+
+### Editing and conflict boundaries
+
+- Updates use `WorkspaceEdit` against exactly one cell's `TextDocument`, **not direct filesystem writes**. No explicit save, code execution, output edit, metadata edit, cell insertion, or cell deletion is requested. VS Code **Auto Save may still persist** an editor change according to your own settings.
+- Every update requires an opaque, one-shot snapshot from a fresh read. The snapshot binds the live notebook/cell/document identity, source hash, document version, and language. Changing a different cell does not invalidate the target's snapshot. Moving a cell does not retarget by index; removing or reopening it requires listing and reading again.
+- A changed target, stale snapshot, user lock, or concurrent update of the same cell is rejected. On conflict, read again and reconcile your intended change with the latest source. Never bypass a conflict by rewriting the `.ipynb` or blindly retrying an old snapshot. An uncertain editor result also requires a fresh read.
+- Read snapshots expire after 15 minutes or earlier bounded-cache eviction (at most 256). Each cell source/replacement is limited to **256 KiB UTF-8**; oversized reads fail instead of truncating. Listings are paginated in batches of 100.
+- Validation and submission run without an intervening asynchronous wait, and VS Code owns the actual edit transaction. The public API does not expose a caller-specified compare-and-swap version; this is **not a claim of absolute race-free locking across editor processes**. A cancellation after submission cannot retract the editor transaction, so the tool reports the actual result rather than claiming an applied edit was cancelled.
+- This is **tool-call-level live updating**, not token-by-token typing. Normal editor undo behavior is used; exact undo grouping and Copilot's native Keep/Undo/Diff or chat checkpoint behavior are not promised. It does not patch or globally replace Copilot's built-in `editNotebook` tool.
+- Read source, including unsaved input, is returned to Copilot and may become context for the selected model. The tools make no direct model/network calls and do not log source or retain full-source snapshots. They operate only on already-open `jupyter-notebook` documents, never silently open a disk file as a fallback.
+
+Automated validation uses mocked editor documents and tool invocations, including the production CJS bundle. Actual visual updates, editor undo behavior, and tool selection in VS Code 1.145.2 still require editor acceptance; no extension installation, reload, account access, or live inference is performed by these tests.
+
+## 0.2.0 release notes
+
+- Add Copilot-callable tools to list open notebooks/cells, read live unsaved cell source, and replace one cell directly in the editor without rewriting the `.ipynb` file on disk.
+- Bind one-shot edit snapshots to live cell/document identity, version, language and source hash. Reject conflicts, stale or cross-cell snapshots, removed/reopened cells, and concurrent same-cell edits.
+- Add a user-controlled **AI editable / AI locked** cell status-bar action and **Toggle AI Cell Lock** command. Lock changes invalidate earlier snapshots; locks govern this extension's update tool only.
+- Do not explicitly save, run code, change outputs/metadata, or silently fall back to filesystem edits. VS Code Auto Save can still persist editor changes.
+- Include tool guidance and approvals; no global system-prompt override, MCP server, new model/backend, or proposed VS Code API is introduced.
+
+Validated with **193 offline tests**, type checks, and production-CJS tool invocations. Actual Notebook/Copilot UI acceptance remains pending; publication is not a claim that the upstream `editNotebook` bug is reproduced or fixed.
 
 ## 0.1.1 patch notes
 
@@ -79,6 +115,7 @@ All commands use the **ChatGPT Subscription** category.
 | Refresh Models | Clear the model catalog cache and local quota retry pause; does not reset upstream limits |
 | Open ChatGPT Usage | Open shared usage information |
 | Show Logs | Show operation status, token counts, sanitized errors, HTTP status, allowlisted response type, and request ID |
+| Toggle AI Cell Lock | Toggle this extension's AI-edit protection for the selected Jupyter Notebook cell; also available in the cell status bar |
 
 Registrations remain separate even when they use the same email address. **Continue with ChatGPT** reuses the active registration, or the sole retained registration after sign-out. If several registrations remain with no active selection, you choose which one to reconnect; cancelling does not create an App. To deliberately create another registration, choose **Manage Accounts → Add an account or workspace**. The very first login also creates a registration. Signing out retains the issued client ID and verified identity mapping for reconnecting. If remote revocation cannot be confirmed, the extension tells you to disconnect the application in ChatGPT Settings.
 
@@ -187,7 +224,7 @@ npm run compile
 npm run package
 ```
 
-Packaging creates `artifacts/lab530.chatgpt-subscription-for-copilot-0.1.1.vsix` locally. It does **not** upload, publish, tag, or deploy anything. The `vscode:prepublish` hook only compiles the bundle before local packaging.
+Packaging creates `artifacts/lab530.chatgpt-subscription-for-copilot-0.2.0.vsix` locally. It does **not** upload, publish, tag, or deploy anything. The `vscode:prepublish` hook only compiles the bundle before local packaging.
 
 Version **0.1.0** was published as `lab530.chatgpt-subscription-for-copilot` through official OIDC Trusted Publishing and independently verified in the public Marketplace. The exact release commit, workflow run, and artifact hash are recorded in [PUBLISHING.md](PUBLISHING.md). The manual [publishing workflow](.github/workflows/publish2marketplace.yml) verifies the exact reviewed main commit, version, tests, archive contents, and package hash before using official OIDC Trusted Publishing. It never publishes on a push, PR, or tag. See [PUBLISHING.md](PUBLISHING.md) for the required publisher policy and approval steps. The project-level minimatch override pins vsce's dependency to 11.0.1 to address the reported globparts-amplification advisory; packaging has been tested with this override.
 

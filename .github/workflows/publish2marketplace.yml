@@ -7,7 +7,7 @@ on:
       version:
         description: Exact package.json version to publish (no automatic version bump)
         required: true
-        default: '0.1.1'
+        default: '0.2.0'
         type: string
       commit:
         description: Full 40-character main commit SHA reviewed for this release

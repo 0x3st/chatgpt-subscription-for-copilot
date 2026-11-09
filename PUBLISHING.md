@@ -16,6 +16,12 @@ This document describes the release workflow. Its presence, a source push, or a 
 - OIDC-only preflight: <https://github.com/0x3st/chatgpt-subscription-for-copilot/actions/runs/42479899625>; its publication step was skipped. Both runs passed 168 tests, dependency audit, and exact archive/runtime checks. The `marketplace` environment requires owner review and permits only `main`; each run's artifact was inspected before approval. This completed authorization does not authorize another release or version bump.
 - Initial `0.1.0` historical record: source `15546b9aacfd20c78754343bcb1b2d27f354bb2f`, run `42448373673`, artifact SHA-256 `8a1467f44f31dca39e76afb1197cbe64d55d3a46da964a61d3873a0435fea9bf`; do not republish either released version.
 
+## Authorized 0.2.0 release preparation
+
+The owner explicitly requested publishing the new live Notebook tools after being told that all 193 offline tests pass but real Copilot tool selection, visual updates, and undo behavior have not been accepted in the editor. This authorizes the current Notebook feature source upload and one `0.2.0` Marketplace publication, subject to the existing exact-commit, signed-identity, artifact, OIDC-preflight, and environment-review gates. It does not authorize account access, real inference, automatic installation/reload, another release, or repeated publication after an ambiguous result.
+
+Version `0.2.0` is prepared in the manifest/lockfile, with English release notes and privacy disclosures. Publication must not be claimed until the workflow succeeds and the version-specific public artifact is independently checked. Historical release records above remain unchanged until verification.
+
 ## Configure Trusted Publishing once
 
 In the [Marketplace publisher management page](https://marketplace.visualstudio.com/manage/publishers/lab530), open **Trusted Publishing → Create** and use:
@@ -52,7 +58,7 @@ An authorized release operator may instead dispatch the same workflow locally, a
 
 ```bash
 gh workflow run publish2marketplace.yml --ref main \
-  -f version=0.1.1 \
+  -f version=0.2.0 \
   -f commit=REVIEWED_FULL_40_CHARACTER_MAIN_COMMIT_SHA \
   -f confirm_publish=true \
   -f auth_only=false
@@ -82,7 +88,7 @@ npm audit --audit-level=low
 npm run package
 ```
 
-Packaging creates `artifacts/lab530.chatgpt-subscription-for-copilot-0.1.1.vsix` locally. `vscode:prepublish` compiles only; it does not publish. Review the exact archive and hash before approving publication.
+Packaging creates `artifacts/lab530.chatgpt-subscription-for-copilot-0.2.0.vsix` locally. `vscode:prepublish` compiles only; it does not publish. Review the exact archive and hash before approving publication.
 
 ## Acceptance boundaries
 
