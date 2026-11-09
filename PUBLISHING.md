@@ -5,22 +5,23 @@ This document describes the release workflow. Its presence, a source push, or a 
 - Publisher: **`lab530`**.
 - Extension: **`lab530.chatgpt-subscription-for-copilot`**.
 - Initial version: **`0.1.0`**.
-- Current released patch: **`0.1.1`**, published following the owner's explicit authorization for source upload and Marketplace publication after verification.
+- Current released version: **`0.2.0`**, published following the owner's explicit authorization for the live Notebook feature source upload and Marketplace publication despite disclosed pending real-editor acceptance.
 - Source: <https://github.com/0x3st/chatgpt-subscription-for-copilot>.
 - Workflow: **`.github/workflows/publish2marketplace.yml`**.
-- Publication status: **`0.1.1` published through official OIDC on 2026-11-08 and independently verified in the public Marketplace version metadata and version-specific VSIX download**.
+- Publication status: **`0.2.0` published through official OIDC on 2026-11-09; the version-specific public Marketplace VSIX was independently downloaded and verified byte-for-byte**. The public version-list metadata initially still showed 0.1.1; no repeat publication was attempted.
 - Listing: <https://marketplace.visualstudio.com/items?itemName=lab530.chatgpt-subscription-for-copilot>.
-- Release source: `dfadd3076e48fd41361ee814effb6f9588431634` (GitHub-verified SSH signature; noreply author and committer).
-- Successful release run: <https://github.com/0x3st/chatgpt-subscription-for-copilot/actions/runs/42480184302>.
-- Published workflow artifact SHA-256: `e1e46dbbe3748778851be030ffcd57875052e1f161331e83fa6bc1d55ed1c2f8`. The independently downloaded public VSIX and public version metadata have the same hash.
-- OIDC-only preflight: <https://github.com/0x3st/chatgpt-subscription-for-copilot/actions/runs/42479899625>; its publication step was skipped. Both runs passed 168 tests, dependency audit, and exact archive/runtime checks. The `marketplace` environment requires owner review and permits only `main`; each run's artifact was inspected before approval. This completed authorization does not authorize another release or version bump.
+- Release source: `0c8f8650cfc21a145fe90efaf95116df7840e2fc` (GitHub-verified SSH signature; approved noreply author and committer).
+- Successful release run: <https://github.com/0x3st/chatgpt-subscription-for-copilot/actions/runs/42584363780>.
+- Published workflow artifact SHA-256: `8a9fc3f4671e5b4d2d688ad0b334200c5a4cfbeaa3eee33b50a22232a6f1585f`. The independently downloaded public VSIX has the same hash after decoding the HTTP gzip transport. All nine packaged file contents match the locally reviewed VSIX; the runtime matches the production CJS tested locally and on CI.
+- OIDC-only preflight: <https://github.com/0x3st/chatgpt-subscription-for-copilot/actions/runs/42583967720>; its publication step was skipped. Both runs passed 193 tests, type checks, dependency audit (zero vulnerabilities), and exact archive/runtime checks. The `marketplace` environment requires owner review and permits only `main`; each run's exact artifact was inspected before owner-authorized approval. This completed authorization does not authorize another release or version bump.
+- Historical `0.1.1` record: source `dfadd3076e48fd41361ee814effb6f9588431634`, OIDC preflight `42479899625`, release run `42480184302`, published artifact SHA-256 `e1e46dbbe3748778851be030ffcd57875052e1f161331e83fa6bc1d55ed1c2f8`; 168 tests passed, and public metadata/download were independently verified.
 - Initial `0.1.0` historical record: source `15546b9aacfd20c78754343bcb1b2d27f354bb2f`, run `42448373673`, artifact SHA-256 `8a1467f44f31dca39e76afb1197cbe64d55d3a46da964a61d3873a0435fea9bf`; do not republish either released version.
 
-## Authorized 0.2.0 release preparation
+## Verified 0.2.0 release and completed authorization
 
 The owner explicitly requested publishing the new live Notebook tools after being told that all 193 offline tests pass but real Copilot tool selection, visual updates, and undo behavior have not been accepted in the editor. This authorizes the current Notebook feature source upload and one `0.2.0` Marketplace publication, subject to the existing exact-commit, signed-identity, artifact, OIDC-preflight, and environment-review gates. It does not authorize account access, real inference, automatic installation/reload, another release, or repeated publication after an ambiguous result.
 
-Version `0.2.0` is prepared in the manifest/lockfile, with English release notes and privacy disclosures. Publication must not be claimed until the workflow succeeds and the version-specific public artifact is independently checked. Historical release records above remain unchanged until verification.
+Version `0.2.0` is now published with English release notes and privacy disclosures. The workflow and independent public download verification succeeded. The authorization is completed: do not republish 0.2.0, automatically bump another version, or upload new business changes without new owner approval. No local extension installation/reload, login, credential migration, or real model invocation occurred. Notebook tool selection, actual visual updates, undo behavior, and cross-platform acceptance remain unverified.
 
 ## Configure Trusted Publishing once
 
