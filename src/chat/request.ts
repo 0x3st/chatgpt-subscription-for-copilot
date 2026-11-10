@@ -1,12 +1,14 @@
 import { createHash } from 'node:crypto';
 import { AppError } from '../core';
 import type { ChatModel, Effort } from './models';
+import { MATH_INSTRUCTIONS } from './markdown';
 export type Content = { type: 'text'; text: string } | { type: 'image'; mime: string; data: Uint8Array };
 export type Part = Content | { type: 'call'; id: string; name: string; input: object } | { type: 'result'; id: string; content: Content[] };
 export interface Message { role: 'user' | 'assistant'; parts: Part[] }
 export interface Tool { name: string; description: string; schema: object }
 export interface Prepared { body: Record<string, unknown>; allowed: Map<string, string> }
 export const NAMESPACE = 'copilot';
+export const NOTEBOOK_INSTRUCTIONS = 'Notebook editing tools currently have known issues in Copilot. For notebook changes, do not use notebook-editing tools or modify .ipynb files through file-editing tools, terminal commands, or scripts. Instead, provide cell-level editing suggestions: identify each target cell from the available context, briefly explain the change, and supply the full replacement cell content in a fenced code block with its language so the user can copy and paste it. If cell contents or identity are unavailable, ask the user to share them; do not invent cells or claim edits, saves, or execution.';
 export function wireToolName(name: string): string {
   // Always hash: stable through tool-list changes and cannot collide with a raw name.
   return `t_${createHash('sha256').update(name).digest('hex').slice(0, 40)}`;
@@ -51,7 +53,7 @@ export function prepareRequest(model: ChatModel, messages: readonly Message[], t
   }
   if (!input.length) throw new AppError('Cannot send an empty conversation.');
   const body: Record<string, unknown> = {
-    model: model.id, instructions: 'You are the language model for GitHub Copilot Chat. Follow the supplied conversation and tool instructions. Only call the tools explicitly provided; the editor controls execution and permissions.',
+    model: model.id, instructions: `You are the language model for GitHub Copilot Chat. Follow the supplied conversation and tool instructions. Only call the tools explicitly provided; the editor controls execution and permissions. ${MATH_INSTRUCTIONS} ${NOTEBOOK_INSTRUCTIONS}`,
     input, store: false, stream: true, include: ['reasoning.encrypted_content'], prompt_cache_key: sessionId
   };
   if (tools.length) {

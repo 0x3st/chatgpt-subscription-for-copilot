@@ -17,6 +17,14 @@ This document describes the release workflow. Its presence, a source push, or a 
 - Historical `0.1.1` record: source `dfadd3076e48fd41361ee814effb6f9588431634`, OIDC preflight `42479899625`, release run `42480184302`, published artifact SHA-256 `e1e46dbbe3748778851be030ffcd57875052e1f161331e83fa6bc1d55ed1c2f8`; 168 tests passed, and public metadata/download were independently verified.
 - Initial `0.1.0` historical record: source `15546b9aacfd20c78754343bcb1b2d27f354bb2f`, run `42448373673`, artifact SHA-256 `8a1467f44f31dca39e76afb1197cbe64d55d3a46da964a61d3873a0435fea9bf`; do not republish either released version.
 
+## Authorized 0.2.1 update (publication pending)
+
+The owner explicitly requested publication of the LaTeX compatibility work, then required withdrawal of the 0.2.0 live Notebook tools and cell-level suggestions for manual copy/paste. The owner selected **0.2.1**, not 0.3.0. This is authorization for this exact update's source upload and one Marketplace publication after validation, signed-identity checks, artifact inspection, OIDC-only preflight, and owner-authorized environment review. It does not authorize automatic editor installation/reload, account access, real inference, or another release.
+
+The Notebook implementation, three tools, AI-lock command, and status-bar UI are removed. Outgoing model instructions warn about current Copilot Notebook tool issues, recommend full replacement content for each identified cell, and forbid Notebook-edit/file-edit/terminal/script workarounds in that guidance. This is a prompt-level recommendation, not enforced disabling of Copilot's own tools. LaTeX rendering and agent compliance still need real-editor acceptance. Existing untracked UI probe scripts are excluded from the upload and VSIX.
+
+Local validation passed: **205 offline tests**, strict type checks, dependency audit (zero reported vulnerabilities), and a nine-entry VSIX with byte-identical production/tested runtime. The archive contains no live Notebook implementation or registrations, while the outgoing Notebook guidance and LaTeX instructions are present. Publication is pending. Do not treat these preparation notes, a source push, or a local package as proof of a successful release.
+
 ## Verified 0.2.0 release and completed authorization
 
 The owner explicitly requested publishing the new live Notebook tools after being told that all 193 offline tests pass but real Copilot tool selection, visual updates, and undo behavior have not been accepted in the editor. This authorizes the current Notebook feature source upload and one `0.2.0` Marketplace publication, subject to the existing exact-commit, signed-identity, artifact, OIDC-preflight, and environment-review gates. It does not authorize account access, real inference, automatic installation/reload, another release, or repeated publication after an ambiguous result.
@@ -59,7 +67,7 @@ An authorized release operator may instead dispatch the same workflow locally, a
 
 ```bash
 gh workflow run publish2marketplace.yml --ref main \
-  -f version=0.2.0 \
+  -f version=0.2.1 \
   -f commit=REVIEWED_FULL_40_CHARACTER_MAIN_COMMIT_SHA \
   -f confirm_publish=true \
   -f auth_only=false
@@ -89,7 +97,7 @@ npm audit --audit-level=low
 npm run package
 ```
 
-Packaging creates `artifacts/lab530.chatgpt-subscription-for-copilot-0.2.0.vsix` locally. `vscode:prepublish` compiles only; it does not publish. Review the exact archive and hash before approving publication.
+Packaging creates `artifacts/lab530.chatgpt-subscription-for-copilot-0.2.1.vsix` locally. `vscode:prepublish` compiles only; it does not publish. Review the exact archive and hash before approving publication.
 
 ## Acceptance boundaries
 

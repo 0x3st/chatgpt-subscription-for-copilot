@@ -26,13 +26,11 @@ A token-free filesystem lock under the extension's local global-storage director
 
 Encrypted reasoning replay stays **only in process memory**, isolated by account registration, epoch, and model. It is eligible for replay for 30 minutes, bounded to 256 entries and 8 MiB. Expired entries are removed when the cache is accessed; deactivation clears it. It is not written to disk or logs. Reloading the editor can therefore make earlier reasoning context unavailable.
 
-## Live Notebook tools (0.2.0)
+## Notebook suggestions and math formatting (0.2.1)
 
-When enabled and invoked by Copilot, the Notebook tools list already-open Jupyter notebook editor documents, read an individual cell's live source (including unsaved text), and update that cell in the editor after snapshot/lock validation. Notebook URIs, cell identities, languages, versions, lock states, and read source can be returned to Copilot and become context for its selected model, including a model supplied by another extension. The tools themselves make no direct network or model calls.
+The live Notebook tools and AI locks introduced in 0.2.0 have been removed because of reported Copilot integration problems. This version does not register Notebook-reading/editing tools or maintain cell identities, edit snapshots, or AI locks. It instructs the selected model to provide cell-level replacement suggestions for the user to review and copy/paste, rather than directly modifying notebooks. This guidance does not disable or control Copilot's own tools or tools from other extensions.
 
-Cell identities, AI locks, and at most 256 short-lived read snapshots remain in this extension host's memory. Snapshots contain document references, versions, language IDs and source hashes, not retained copies of full cell source. Snapshot eligibility expires after 15 minutes or earlier eviction; expired entries are pruned on subsequent reads/updates, and closing a notebook removes its snapshots. Disposal clears this state. Locks are not written into notebook metadata or settings and do not synchronize across windows.
-
-These tools do not directly rewrite disk files, explicitly save, execute code, or edit outputs or metadata. VS Code Auto Save can still persist live editor changes according to your settings. AI locks govern only this extension's update tool, not other tools or filesystem access. Editor source is not added to this extension's diagnostic logs.
+Cell content that you or Copilot include in a conversation is still sent to OpenAI as described above. Mathematical Markdown formatting is adapted locally before text is delivered to Copilot; no external rendering service or new data destination is introduced. A bounded in-memory buffer holds incomplete TeX-delimited formulas for that response only. It is not persisted or logged.
 
 ## Logs and telemetry
 
@@ -50,7 +48,7 @@ GitHub Copilot, VS Code, OpenAI, and installed extensions may have separate tele
 - Signing out retains the issued client ID and verified identity mapping to support reconnecting. Remote revocation failures are reported; disconnect the application in ChatGPT Settings if necessary.
 - Uninstalling or changing publisher identity is not a substitute for revoking a remote authorization and does not necessarily delete data retained by VS Code or OpenAI.
 - Review context and tool approvals in Copilot. Do not submit sensitive information unless permitted by your organization's policies.
-- Enable or disable the live Notebook tools in Copilot's tools picker. Use the cell's **AI editable / AI locked** action or **Toggle AI Cell Lock** to block this extension's future AI edits to that cell; closing the notebook or reloading the extension clears its in-memory lock.
+- For Notebook changes, review the suggested replacement for each cell and copy/paste it yourself. This extension no longer provides live Notebook tools or cell AI locks; review Copilot's other tool permissions independently.
 
 ## Support
 

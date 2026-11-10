@@ -12,7 +12,7 @@ import { newVault } from '../src/auth/store';
 import { json, registration, sse } from './helpers';
 import * as api from './vscode.mock';
 
-test('shipping CJS exposes native submenus, consumes choices and reports actual usage without real credentials or inference', async () => {
+test('shipping CJS exposes math and manual Notebook guidance without live Notebook tools, and retains native settings/usage', async () => {
   const filename = resolve('.test-build/extension-under-test.cjs');
   const source = await readFile(filename, 'utf8'); const load = createRequire(filename);
   const module = { exports: {} as { activate(context: vscode.ExtensionContext): void } };
@@ -27,7 +27,7 @@ test('shipping CJS exposes native submenus, consumes choices and reports actual 
         max_input_tokens: 1000000, max_output_tokens: 64000, supported_reasoning_efforts: ['low', 'high'] }] });
       assert.equal(url, `${API}/responses`);
       bodies.push(JSON.parse(String(init.body)) as Record<string, unknown>);
-      return sse([{ type: 'response.output_text.delta', delta: 'Synthetic reply' },
+      return sse([{ type: 'response.output_text.delta', delta: 'Synthetic reply \\(x^2\\)' },
         { type: 'response.completed', response: { status: 'completed', output: [], usage: { input_tokens: 24000, output_tokens: 300, input_tokens_details: { cached_tokens: 12000 } } } }]);
     }
   }, { filename, timeout: 5000 });
@@ -44,6 +44,9 @@ test('shipping CJS exposes native submenus, consumes choices and reports actual 
   try {
     module.exports.activate(context);
     assert.equal(bodies.length, 0);
+    assert.equal(api.registeredTools.size, 0); assert.equal(api.notebookStatusProviders.size, 0);
+    assert.equal(api.registeredCommands.size, 7); assert.ok(!api.registeredCommands.has('chatgptSub.toggleNotebookCellLock'));
+    assert.doesNotMatch(source, /NotebookLiveEdit|registerNotebookTools|chatgptSub_notebook/);
     const provider = api.registeredProviders.get('chatgpt-subscription-preview') as ChatGPTProvider; assert.ok(provider);
     const models = await provider.provideLanguageModelChatInformation({ silent: true }, token); assert.equal(models.length, 1);
     const info = models[0]!; const properties = info.configurationSchema.properties;
@@ -54,12 +57,14 @@ test('shipping CJS exposes native submenus, consumes choices and reports actual 
       content: [new api.LanguageModelTextPart('Synthetic request')] }], {
       toolMode: api.LanguageModelChatToolMode.Auto, modelConfiguration: { reasoningEffort: 'high', contextSize: 64000 }
     }, { report: part => parts.push(part) }, token);
-    assert.equal(parts.length, 2); assert.ok(parts[0] instanceof api.LanguageModelTextPart); assert.equal(parts[0].value, 'Synthetic reply');
+    assert.equal(parts.length, 2); assert.ok(parts[0] instanceof api.LanguageModelTextPart); assert.equal(parts[0].value, 'Synthetic reply $x^2$');
     assert.ok(parts[1] instanceof api.LanguageModelDataPart); assert.equal(parts[1].mimeType, 'usage');
     assert.deepEqual(JSON.parse(new TextDecoder().decode(parts[1].data)), {
       prompt_tokens: 24000, completion_tokens: 300, total_tokens: 24300, prompt_tokens_details: { cached_tokens: 12000 }
     });
     assert.equal(bodies.length, 1); assert.deepEqual(bodies[0]!.reasoning, { effort: 'high' });
+    assert.match(String(bodies[0]!.instructions), /Notebook editing tools currently have known issues in Copilot/);
+    assert.match(String(bodies[0]!.instructions), /full replacement cell content.*copy and paste/);
     assert.ok(!('contextSize' in bodies[0]!)); assert.ok(!('max_output_tokens' in bodies[0]!));
     assert.equal(api.browserOpens, 0);
   } finally {

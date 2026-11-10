@@ -2,6 +2,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import * as vscode from 'vscode';
 import type { AccountManager } from './auth/accounts';
 import { complete } from './chat/client';
+import { MathMarkdownStream } from './chat/markdown';
 import { EFFORTS, editorId, fetchModels, type ChatModel, type Effort } from './chat/models';
 import { estimateTokens, prepareRequest } from './chat/request';
 import { ReplayCache } from './chat/replay';
@@ -150,19 +151,29 @@ export class ChatGPTProvider implements vscode.LanguageModelChatProvider<NativeM
         throw new AppError('The conversation exceeds the effective input context budget. Start a new chat or select a larger budget. No history was dropped.');
       }
       let summary = false; let answer = false;
+      let markdown = new MathMarkdownStream(); let channel: 'text' | 'summary' | undefined;
+      const reportText = (value: string) => {
+        if (value) { checkAbort(operation.signal); progress.report(new vscode.LanguageModelTextPart(value)); }
+      };
       const result = await complete(this.http, credentials.access, prepared, operation.signal, (type, value) => {
         checkAbort(operation.signal);
+        if (type === 'summary' && !config.summary) return;
+        if (channel !== type) {
+          reportText(markdown.finish()); markdown = new MathMarkdownStream(); channel = type;
+        }
         if (type === 'summary') {
-          if (!config.summary) return;
-          if (!summary) progress.report(new vscode.LanguageModelTextPart('\n\n**Reasoning summary**\n\n'));
+          if (!summary) reportText('\n\n**Reasoning summary**\n\n');
           summary = true;
         } else if (!answer) {
-          if (summary) progress.report(new vscode.LanguageModelTextPart('\n\n---\n\n'));
+          if (summary) reportText('\n\n---\n\n');
           answer = true;
         }
-        progress.report(new vscode.LanguageModelTextPart(value));
+        reportText(markdown.push(value));
       }, config.timeoutMs, info => {
         this.log.info(`Responses transport: HTTP ${info.status}; Content-Type: ${info.contentType}; request ID: ${info.requestId ?? 'unavailable'}.`);
+      }).finally(() => {
+        // Preserve a literal incomplete tail on transport failure, but never emit after cancellation.
+        if (!operation.signal.aborted) reportText(markdown.finish());
       });
       checkAbort(operation.signal);
       this.replay.remember(replayScope, result.replay);

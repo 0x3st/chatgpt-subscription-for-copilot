@@ -7,7 +7,6 @@ import { HttpClient } from './http';
 import { ChatGPTProvider, VENDOR } from './provider';
 import { refreshNativePicker } from './modelPicker';
 import { cancellation, localStorageDirectory } from './vscodeAdapter';
-import { registerNotebookTools } from './notebookTools';
 
 export function activate(context: vscode.ExtensionContext): void {
   const storageDirectory = localStorageDirectory(context.globalStorageUri, vscode.env.uiKind);
@@ -16,7 +15,6 @@ export function activate(context: vscode.ExtensionContext): void {
   const http = new HttpClient();
   const accounts = new AccountManager(new LockedAccountStore(context.secrets, storageDirectory), new OAuthClient(http));
   context.subscriptions.push(log, accounts, { dispose: () => lifetime.abort() });
-  registerNotebookTools(context);
 
   const report = (error: unknown) => {
     const safe = safeError(error);
